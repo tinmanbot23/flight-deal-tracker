@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Deal Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300;
+    --s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834;
+    --accent: #2a78d6; --good: #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #008300;
+      --s5: #9085e9; --s6: #e66767; --s7: #d55181; --s8: #d95926;
+      --accent: #3987e5; --good: #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.45;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 20px 16px 64px; }
+  header h1 { font-size: 1.5rem; margin: 0 0 2px; }
+  header .updated { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+  h2 { font-size: 1.05rem; margin: 28px 0 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .card .route { font-weight: 600; }
+  .card .price { font-size: 1.6rem; font-weight: 700; float: right; }
+  .card .sub { color: var(--ink-2); font-size: 0.85rem; margin-top: 6px; clear: both; }
+  .card .meta { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  select, button {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--baseline); border-radius: 8px; padding: 7px 10px;
+  }
+  button { cursor: pointer; min-width: 40px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .chart-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; height: 320px;
+  }
+  .datebar { display: flex; gap: 8px; align-items: center; margin: 18px 0 10px; flex-wrap: wrap; }
+  .datebar .label { color: var(--ink-2); font-size: 0.9rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface);
+          border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-top: 1px solid var(--grid);
+           font-variant-numeric: tabular-nums; }
+  thead th { border-top: none; color: var(--muted); font-size: 0.78rem;
+             text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  tbody tr.offer { cursor: pointer; }
+  tbody tr.offer:hover { background: rgba(128,128,128,0.07); }
+  td.price { font-weight: 700; white-space: nowrap; }
+  .detail td { background: rgba(128,128,128,0.05); font-size: 0.87rem; padding: 12px 16px; }
+  .detail .leg-title { font-weight: 600; margin: 6px 0 3px; }
+  .detail .seg { color: var(--ink-2); margin-left: 8px; }
+  .detail .layover { color: var(--muted); margin-left: 20px; font-size: 0.82rem; }
+  .detail .fare { margin-top: 8px; color: var(--ink-2); }
+  .chip { display: inline-block; padding: 1px 7px; border: 1px solid var(--baseline);
+          border-radius: 999px; font-size: 0.72rem; color: var(--ink-2); margin-left: 6px; }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .table-scroll { overflow-x: auto; }
+  @media (max-width: 640px) {
+    .hide-sm { display: none; }
+    .chart-box { height: 240px; }
+    .card .price { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Flight Deal Tracker</h1>
+    <div class="updated" id="updated">Loading…</div>
+  </header>
+
+  <section>
+    <h2>Top 3 domestic</h2>
+    <div class="cards" id="top-domestic"></div>
+    <h2>Top 3 international</h2>
+    <div class="cards" id="top-international"></div>
+  </section>
+
+  <section>
+    <h2>Route explorer</h2>
+    <div class="controls">
+      <label>From <select id="origin"></select></label>
+      <label>To <select id="dest"></select></label>
+    </div>
+    <div class="chart-box"><canvas id="chart"></canvas></div>
+    <div class="datebar">
+      <span class="label">Departure date:</span>
+      <button id="prev-date" aria-label="Previous date">‹</button>
+      <select id="date-select"></select>
+      <button id="next-date" aria-label="Next date">›</button>
+      <span class="label" id="date-pos"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="offers-table">
+        <thead><tr>
+          <th>Price</th><th>Flights</th><th class="hide-sm">Stops</th>
+          <th class="hide-sm">Duration</th><th>Fare</th>
+        </tr></thead>
+        <tbody id="offers-body"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+const SERIES = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+let DATA = null;
+let chart = null;
+const state = { origin: null, dest: null, dateIndex: 0 };
+
+const $ = id => document.getElementById(id);
+
+function fmtClock(iso) {
+  const d = new Date(iso);
+  const h = d.getHours() % 12 || 12;
+  return `${h}:${String(d.getMinutes()).padStart(2, "0")}${d.getHours() < 12 ? "a" : "p"}`;
+}
+function fmtDate(iso) {
+  return new Date(iso + "T12:00:00").toLocaleDateString(undefined,
+    { month: "short", day: "numeric" });
+}
+function fmtDur(min) { return `${Math.floor(min / 60)}h ${min % 60}m`; }
+function fmtRun(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function titleCase(s) {
+  return String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+function layoverMin(prevSeg, nextSeg) {
+  return Math.round((new Date(nextSeg.depart_time) - new Date(prevSeg.arrive_time)) / 60000);
+}
+function plusDays(seg, legStart) {
+  const diff = (new Date(seg.arrive_time.slice(0, 10)) - new Date(legStart.slice(0, 10))) / 86400000;
+  return diff > 0 ? `+${diff}` : "";
+}
+function legSummary(segs) {
+  const start = segs[0].depart_time;
+  return segs.map(s =>
+    `${s.flight_number} ${s.depart_airport} ${fmtClock(s.depart_time)}→${s.arrive_airport} ${fmtClock(s.arrive_time)}${plusDays(s, start)}`
+  ).join(", ");
+}
+
+/* ---------- top cards ---------- */
+function renderTop() {
+  for (const region of ["domestic", "international"]) {
+    const el = $(`top-${region}`);
+    const deals = (DATA.top && DATA.top[region]) || [];
+    el.innerHTML = deals.length ? "" : `<div class="empty">No qualifying deals in the latest run.</div>`;
+    for (const d of deals) {
+      const brand = titleCase((d.fare_brands || []).find(b => b) || "");
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <span class="price">$${Math.round(d.price_usd)}</span>
+        <div class="route">${d.origin}→${d.dest} <span class="chip">${d.dest_name || d.dest}</span></div>
+        <div class="sub">${titleCase(d.outbound[0].carrier_name)} · ${legSummary(d.outbound)}</div>
+        <div class="meta">${brand} · ${fmtDate(d.depart_date)} – ${fmtDate(d.return_date)} · ${fmtDur(d.total_duration_minutes)} total</div>`;
+      el.appendChild(card);
+    }
+  }
+}
+
+/* ---------- route explorer ---------- */
+function routeKey() { return `${state.origin}-${state.dest}`; }
+function currentRoute() { return DATA.routes[routeKey()]; }
+
+function departDates(route) {
+  return [...new Set(route.offers.map(o => o.depart_date))].sort();
+}
+
+function populateSelectors() {
+  const routes = Object.values(DATA.routes);
+  const origins = [...new Set(routes.map(r => r.origin))].sort();
+  $("origin").innerHTML = origins.map(o => `<option>${o}</option>`).join("");
+  state.origin = origins[0] || null;
+  populateDests();
+}
+function populateDests() {
+  const dests = Object.values(DATA.routes)
+    .filter(r => r.origin === state.origin)
+    .map(r => ({ code: r.dest, name: r.dest_name }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  $("dest").innerHTML = dests.map(d =>
+    `<option value="${d.code}">${d.code} — ${d.name}</option>`).join("");
+  state.dest = dests.length ? dests[0].code : null;
+  state.dateIndex = 0;
+  renderRoute();
+}
+
+function renderRoute() {
+  const route = currentRoute();
+  const dates = route ? departDates(route) : [];
+  state.dateIndex = Math.min(state.dateIndex, Math.max(dates.length - 1, 0));
+  renderDatebar(dates);
+  renderChart(route, dates);
+  renderTable(route, dates);
+}
+
+function renderDatebar(dates) {
+  $("date-select").innerHTML = dates.map((d, i) =>
+    `<option value="${i}">${fmtDate(d)}</option>`).join("");
+  $("date-select").value = state.dateIndex;
+  $("prev-date").disabled = state.dateIndex <= 0;
+  $("next-date").disabled = state.dateIndex >= dates.length - 1;
+  $("date-pos").textContent = dates.length ? `${state.dateIndex + 1} of ${dates.length}` : "no dates";
+}
+
+function renderChart(route, dates) {
+  if (chart) { chart.destroy(); chart = null; }
+  if (!route) return;
+  const runs = [...new Set(route.offers.map(o => o.run_timestamp))].sort();
+  const datasets = dates.slice(0, 8).map((date, i) => {
+    const byRun = new Map();
+    for (const o of route.offers) {
+      if (o.depart_date !== date) continue;
+      const cur = byRun.get(o.run_timestamp);
+      if (cur === undefined || o.price_usd < cur) byRun.set(o.run_timestamp, o.price_usd);
+    }
+    const selected = i === state.dateIndex;
+    const color = cssVar(SERIES[i % SERIES.length]);
+    return {
+      label: `Depart ${fmtDate(date)}`,
+      data: runs.map(r => byRun.has(r) ? byRun.get(r) : null),
+      borderColor: color, backgroundColor: color,
+      borderWidth: selected ? 3 : 2, pointRadius: selected ? 4 : 3,
+      spanGaps: true, tension: 0.15,
+    };
+  });
+  chart = new Chart($("chart"), {
+    type: "line",
+    data: { labels: runs.map(fmtRun), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "nearest", intersect: false },
+      plugins: {
+        legend: { labels: { color: cssVar("--ink-2"), usePointStyle: true, boxHeight: 7 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y}` } },
+      },
+      scales: {
+        x: { ticks: { color: cssVar("--muted"), maxTicksLimit: 10 },
+             grid: { color: cssVar("--grid") } },
+        y: { ticks: { color: cssVar("--muted"), callback: v => "$" + v },
+             grid: { color: cssVar("--grid") } },
+      },
+    },
+  });
+}
+
+function renderTable(route, dates) {
+  const body = $("offers-body");
+  body.innerHTML = "";
+  if (!route || !dates.length) {
+    body.innerHTML = `<tr><td colspan="5" class="empty">No offers recorded for this route yet.</td></tr>`;
+    return;
+  }
+  const date = dates[state.dateIndex];
+  const dateOffers = route.offers.filter(o => o.depart_date === date);
+  const latestRun = dateOffers.map(o => o.run_timestamp).sort().pop();
+  const offers = dateOffers.filter(o => o.run_timestamp === latestRun)
+    .sort((a, b) => a.price_usd - b.price_usd);
+
+  for (const o of offers) {
+    const row = document.createElement("tr");
+    row.className = "offer";
+    const carriers = [...new Set([...o.outbound, ...o.inbound].map(s => titleCase(s.carrier_name)))].join(" / ");
+    const flights = [...o.outbound, ...o.inbound].map(s => s.flight_number).join(", ");
+    const brand = titleCase((o.fare_brands || []).find(b => b) || "");
+    row.innerHTML = `
+      <td class="price">$${Math.round(o.price_usd)}</td>
+      <td>${carriers}<br><span style="color:var(--muted);font-size:0.82rem">${flights}</span></td>
+      <td class="hide-sm">${o.stops_outbound} / ${o.stops_inbound}</td>
+      <td class="hide-sm">${fmtDur(o.total_duration_minutes)}</td>
+      <td>${brand}</td>`;
+    const detail = document.createElement("tr");
+    detail.className = "detail";
+    detail.style.display = "none";
+    detail.innerHTML = `<td colspan="5">${detailHTML(o)}</td>`;
+    row.addEventListener("click", () => {
+      detail.style.display = detail.style.display === "none" ? "" : "none";
+    });
+    body.appendChild(row);
+    body.appendChild(detail);
+  }
+}
+
+function detailHTML(o) {
+  const leg = (title, segs, dateStr) => {
+    let html = `<div class="leg-title">${title} · ${fmtDate(dateStr)}</div>`;
+    segs.forEach((s, i) => {
+      html += `<div class="seg">${titleCase(s.carrier_name)} ${s.flight_number} · ` +
+        `${s.depart_airport} ${fmtClock(s.depart_time)} → ${s.arrive_airport} ` +
+        `${fmtClock(s.arrive_time)}${plusDays(s, segs[0].depart_time)}` +
+        `${s.aircraft ? ` · ${titleCase(s.aircraft)}` : ""} · ${fmtDur(s.duration_minutes)}</div>`;
+      if (i < segs.length - 1) {
+        html += `<div class="layover">↳ layover ${s.arrive_airport}: ${fmtDur(layoverMin(s, segs[i + 1]))}</div>`;
+      }
+    });
+    return html;
+  };
+  const brands = (o.fare_brands || []).filter(b => b).map(titleCase).join(", ");
+  return leg("Outbound", o.outbound, o.depart_date) +
+         leg("Return", o.inbound, o.return_date) +
+         `<div class="fare">Fare: ${brands || "—"} · Total travel time ${fmtDur(o.total_duration_minutes)}` +
+         ` · Book on the airline's site with the flight numbers above.</div>`;
+}
+
+/* ---------- wiring ---------- */
+$("origin").addEventListener("change", e => { state.origin = e.target.value; populateDests(); });
+$("dest").addEventListener("change", e => { state.dest = e.target.value; state.dateIndex = 0; renderRoute(); });
+$("date-select").addEventListener("change", e => { state.dateIndex = +e.target.value; renderRoute(); });
+$("prev-date").addEventListener("click", () => { state.dateIndex--; renderRoute(); });
+$("next-date").addEventListener("click", () => { state.dateIndex++; renderRoute(); });
+
+fetch("data/prices.json")
+  .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+  .then(data => {
+    DATA = data;
+    $("updated").textContent = "Last updated " + new Date(data.generated_at).toLocaleString();
+    renderTop();
+    populateSelectors();
+  })
+  .catch(err => {
+    $("updated").textContent = "No data yet — waiting for the first tracker run. (" + err.message + ")";
+  });
+</script>
+</body>
+</html>

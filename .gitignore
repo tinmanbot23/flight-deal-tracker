@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# Dry-run scratch database (isolated from the committed prices.db)
+dryrun.db
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# NOTE: prices.db, report.md, and docs/ are intentionally committed —
+# the GitHub Actions workflow updates them on every run.

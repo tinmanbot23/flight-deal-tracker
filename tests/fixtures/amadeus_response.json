@@ -1,0 +1,189 @@
+{
+  "meta": {"count": 2},
+  "data": [
+    {
+      "type": "flight-offer",
+      "id": "1",
+      "source": "GDS",
+      "oneWay": false,
+      "numberOfBookableSeats": 4,
+      "itineraries": [
+        {
+          "duration": "PT12H30M",
+          "segments": [
+            {
+              "id": "1",
+              "departure": {"iataCode": "RDU", "at": "2026-11-09T11:40:00"},
+              "arrival": {"iataCode": "ATL", "at": "2026-11-09T13:05:00"},
+              "carrierCode": "DL",
+              "number": "1103",
+              "aircraft": {"code": "321"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT1H25M",
+              "numberOfStops": 0
+            },
+            {
+              "id": "2",
+              "departure": {"iataCode": "ATL", "at": "2026-11-09T14:30:00"},
+              "arrival": {"iataCode": "SCL", "at": "2026-11-10T03:45:00"},
+              "carrierCode": "DL",
+              "number": "147",
+              "aircraft": {"code": "359"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT9H15M",
+              "numberOfStops": 0
+            }
+          ]
+        },
+        {
+          "duration": "PT13H7M",
+          "segments": [
+            {
+              "id": "3",
+              "departure": {"iataCode": "SCL", "at": "2026-11-17T08:05:00"},
+              "arrival": {"iataCode": "ATL", "at": "2026-11-17T15:10:00"},
+              "carrierCode": "DL",
+              "number": "146",
+              "aircraft": {"code": "359"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT9H5M",
+              "numberOfStops": 0
+            },
+            {
+              "id": "4",
+              "departure": {"iataCode": "ATL", "at": "2026-11-17T17:40:00"},
+              "arrival": {"iataCode": "RDU", "at": "2026-11-17T19:12:00"},
+              "carrierCode": "DL",
+              "number": "2088",
+              "aircraft": {"code": "321"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT1H32M",
+              "numberOfStops": 0
+            }
+          ]
+        }
+      ],
+      "price": {
+        "currency": "USD",
+        "total": "842.00",
+        "base": "690.00",
+        "grandTotal": "842.00"
+      },
+      "pricingOptions": {"fareType": ["PUBLISHED"], "includedCheckedBagsOnly": true},
+      "validatingAirlineCodes": ["DL"],
+      "travelerPricings": [
+        {
+          "travelerId": "1",
+          "fareOption": "STANDARD",
+          "travelerType": "ADULT",
+          "price": {"currency": "USD", "total": "842.00", "base": "690.00"},
+          "fareDetailsBySegment": [
+            {"segmentId": "1", "cabin": "ECONOMY", "fareBasis": "MA0NA0MQ", "brandedFare": "MAINCABIN", "brandedFareLabel": "MAIN CABIN", "class": "M"},
+            {"segmentId": "2", "cabin": "ECONOMY", "fareBasis": "MA0NA0MQ", "brandedFare": "MAINCABIN", "brandedFareLabel": "MAIN CABIN", "class": "M"},
+            {"segmentId": "3", "cabin": "ECONOMY", "fareBasis": "MA0NA0MQ", "brandedFare": "MAINCABIN", "brandedFareLabel": "MAIN CABIN", "class": "M"},
+            {"segmentId": "4", "cabin": "ECONOMY", "fareBasis": "MA0NA0MQ", "brandedFare": "MAINCABIN", "brandedFareLabel": "MAIN CABIN", "class": "M"}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "flight-offer",
+      "id": "2",
+      "source": "GDS",
+      "oneWay": false,
+      "numberOfBookableSeats": 2,
+      "itineraries": [
+        {
+          "duration": "PT12H30M",
+          "segments": [
+            {
+              "id": "5",
+              "departure": {"iataCode": "RDU", "at": "2026-11-09T11:40:00"},
+              "arrival": {"iataCode": "ATL", "at": "2026-11-09T13:05:00"},
+              "carrierCode": "DL",
+              "number": "1103",
+              "aircraft": {"code": "321"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT1H25M",
+              "numberOfStops": 0
+            },
+            {
+              "id": "6",
+              "departure": {"iataCode": "ATL", "at": "2026-11-09T14:30:00"},
+              "arrival": {"iataCode": "SCL", "at": "2026-11-10T03:45:00"},
+              "carrierCode": "DL",
+              "number": "147",
+              "aircraft": {"code": "359"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT9H15M",
+              "numberOfStops": 0
+            }
+          ]
+        },
+        {
+          "duration": "PT13H7M",
+          "segments": [
+            {
+              "id": "7",
+              "departure": {"iataCode": "SCL", "at": "2026-11-17T08:05:00"},
+              "arrival": {"iataCode": "ATL", "at": "2026-11-17T15:10:00"},
+              "carrierCode": "DL",
+              "number": "146",
+              "aircraft": {"code": "359"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT9H5M",
+              "numberOfStops": 0
+            },
+            {
+              "id": "8",
+              "departure": {"iataCode": "ATL", "at": "2026-11-17T17:40:00"},
+              "arrival": {"iataCode": "RDU", "at": "2026-11-17T19:12:00"},
+              "carrierCode": "DL",
+              "number": "2088",
+              "aircraft": {"code": "321"},
+              "operating": {"carrierCode": "DL"},
+              "duration": "PT1H32M",
+              "numberOfStops": 0
+            }
+          ]
+        }
+      ],
+      "price": {
+        "currency": "USD",
+        "total": "699.00",
+        "base": "560.00",
+        "grandTotal": "699.00"
+      },
+      "pricingOptions": {"fareType": ["PUBLISHED"], "includedCheckedBagsOnly": false},
+      "validatingAirlineCodes": ["DL"],
+      "travelerPricings": [
+        {
+          "travelerId": "1",
+          "fareOption": "STANDARD",
+          "travelerType": "ADULT",
+          "price": {"currency": "USD", "total": "699.00", "base": "560.00"},
+          "fareDetailsBySegment": [
+            {"segmentId": "5", "cabin": "ECONOMY", "fareBasis": "EB0NA0BE", "brandedFare": "BASICECONOMY", "brandedFareLabel": "BASIC ECONOMY", "class": "E"},
+            {"segmentId": "6", "cabin": "ECONOMY", "fareBasis": "EB0NA0BE", "brandedFare": "BASICECONOMY", "brandedFareLabel": "BASIC ECONOMY", "class": "E"},
+            {"segmentId": "7", "cabin": "ECONOMY", "fareBasis": "EB0NA0BE", "brandedFare": "BASICECONOMY", "brandedFareLabel": "BASIC ECONOMY", "class": "E"},
+            {"segmentId": "8", "cabin": "ECONOMY", "fareBasis": "EB0NA0BE", "brandedFare": "BASICECONOMY", "brandedFareLabel": "BASIC ECONOMY", "class": "E"}
+          ]
+        }
+      ]
+    }
+  ],
+  "dictionaries": {
+    "locations": {
+      "RDU": {"cityCode": "RDU", "countryCode": "US"},
+      "ATL": {"cityCode": "ATL", "countryCode": "US"},
+      "SCL": {"cityCode": "SCL", "countryCode": "CL"}
+    },
+    "aircraft": {
+      "321": "AIRBUS A321",
+      "359": "AIRBUS A350-900"
+    },
+    "carriers": {
+      "DL": "DELTA AIR LINES"
+    }
+  }
+}
