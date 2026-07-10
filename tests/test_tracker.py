@@ -1,292 +1,202 @@
-"""Date sampling, destination rotation, and offer-row construction tests."""
+"""Tests for months/rotation, task building, budget guard, and rejection
+instrumentation in the Travelpayouts tracker."""
 from __future__ import annotations
 
-import json
-import math
 from datetime import date
 
 import yaml
 
 import db
 import tracker
+from conftest import make_ticket
 
 
-class TestSampleDates:
-    def test_three_evenly_spaced(self):
-        dates = tracker.sample_dates(date(2026, 9, 1), date(2026, 9, 30), 3)
-        assert dates == [date(2026, 9, 1), date(2026, 9, 15), date(2026, 9, 30)]
+class TestMonthsInWindow:
+    def test_single_month(self):
+        assert tracker.months_in_window(date(2026, 9, 5), date(2026, 9, 30)) == ["2026-09"]
 
-    def test_single_date_is_midpoint(self):
-        assert tracker.sample_dates(date(2026, 9, 1), date(2026, 9, 30), 1) == [date(2026, 9, 15)]
-
-    def test_clamped_to_not_before(self):
-        dates = tracker.sample_dates(
-            date(2026, 6, 1), date(2026, 9, 30), 2, not_before=date(2026, 7, 10)
-        )
-        assert dates == [date(2026, 7, 10), date(2026, 9, 30)]
-
-    def test_window_fully_past_returns_empty(self):
-        assert tracker.sample_dates(
-            date(2026, 5, 1), date(2026, 6, 1), 3, not_before=date(2026, 7, 10)
-        ) == []
-
-    def test_narrow_window_dedupes(self):
-        dates = tracker.sample_dates(date(2026, 9, 1), date(2026, 9, 2), 3)
-        assert dates == [date(2026, 9, 1), date(2026, 9, 2)]
+    def test_spanning_year_boundary(self):
+        assert tracker.months_in_window(date(2026, 11, 20), date(2027, 1, 10)) == [
+            "2026-11", "2026-12", "2027-01"
+        ]
 
 
-class TestRotation:
-    ITEMS = [f"D{i}" for i in range(15)]
+class TestRotate:
+    def test_wraps_and_covers(self):
+        items = ["A", "B", "C", "D", "E"]
+        seen = set()
+        for i in range(5):
+            seen.update(tracker.rotate(items, 2, i))
+        assert seen == set(items)
 
-    def test_slice_size(self):
-        assert len(tracker.rotate(self.ITEMS, 2, 0)) == 2
-
-    def test_deterministic(self):
-        assert tracker.rotate(self.ITEMS, 2, 7) == tracker.rotate(self.ITEMS, 2, 7)
-
-    def test_every_destination_covered_over_a_cycle(self):
-        per_run = 2
-        cycle = math.ceil(len(self.ITEMS) / per_run) + 1
-        covered = set()
-        for run_index in range(cycle * 2):
-            covered.update(tracker.rotate(self.ITEMS, per_run, run_index))
-        assert covered == set(self.ITEMS)
-
-    def test_per_run_larger_than_list_returns_all(self):
+    def test_per_run_ge_length_returns_all(self):
         assert tracker.rotate(["A", "B"], 5, 3) == ["A", "B"]
 
 
+CONFIG = {
+    "origins": [
+        {"code": "GSO", "earliest_departure": "08:00"},
+        {"code": "RDU", "earliest_departure": "10:00"},
+    ],
+    "destinations": {
+        "domestic": [{"code": "DEN", "name": "Denver", "date_windows": [
+            {"depart_start": "2026-09-01", "depart_end": "2026-10-31", "trip_length_days": 5}]}],
+        "international": [{"code": "SCL", "name": "Santiago", "date_windows": [
+            {"depart_start": "2026-11-01", "depart_end": "2026-11-30", "trip_length_days": 8}]}],
+    },
+    "rotation": {"domestic_per_run": 1, "international_per_run": 1, "windows_per_run": 1},
+    "search": {"currency": "usd"},
+    "filters": {"max_price_usd": 1000, "max_stops": 1, "blocked_carriers": ["NK"]},
+}
+
+
 class TestBuildTasks:
-    CONFIG = {
-        "origins": [
-            {"code": "GSO", "earliest_departure": "08:00"},
-            {"code": "RDU", "earliest_departure": "10:00"},
-        ],
-        "destinations": {
-            "domestic": [
-                {"code": "DEN", "name": "Denver", "date_windows": [
-                    {"depart_start": "2026-09-01", "depart_end": "2026-09-30",
-                     "trip_length_days": 5},
-                ]},
-            ],
-            "international": [
-                {"code": "SCL", "name": "Santiago", "date_windows": [
-                    {"depart_start": "2026-11-01", "depart_end": "2026-11-30",
-                     "trip_length_days": 8},
-                ]},
-            ],
-        },
-        "rotation": {"domestic_per_run": 1, "international_per_run": 1,
-                     "windows_per_run": 1, "dates_per_window": 2},
-    }
+    def test_call_count_is_origins_x_dests_x_months(self):
+        tasks = tracker.build_tasks(CONFIG, 0, date(2026, 7, 9))
+        # 2 origins x (DEN: 2 months + SCL: 1 month) = 2 x 3 = 6 calls.
+        assert len(tasks) == 6
 
-    def test_call_count_matches_budget_formula(self):
-        tasks = tracker.build_tasks(self.CONFIG, 0, date(2026, 7, 9))
-        # 2 origins x 2 destinations x 1 window x 2 dates
-        assert len(tasks) == 8
-
-    def test_return_date_uses_trip_length(self):
-        tasks = tracker.build_tasks(self.CONFIG, 0, date(2026, 7, 9))
-        den = next(t for t in tasks if t["dest"] == "DEN")
-        assert (date.fromisoformat(den["return_date"])
-                - date.fromisoformat(den["depart_date"])).days == 5
-
-    def test_origin_carries_its_own_departure_floor(self):
-        tasks = tracker.build_tasks(self.CONFIG, 0, date(2026, 7, 9))
-        floors = {t["origin"]: t["earliest_departure"] for t in tasks}
-        assert floors == {"GSO": "08:00", "RDU": "10:00"}
+    def test_task_carries_month_length_and_floor(self):
+        tasks = tracker.build_tasks(CONFIG, 0, date(2026, 7, 9))
+        den = next(t for t in tasks if t["dest"] == "DEN" and t["origin"] == "RDU")
+        assert den["length"] == 5 and den["earliest_departure"] == "10:00"
+        assert den["month"] in {"2026-09", "2026-10"}
 
 
-class TestBuildOfferRow:
-    def test_row_fields(self, good_offer, response):
+class TestBuildRows:
+    def test_offer_row_fields(self):
+        t = make_ticket(origin="RDU", destination="DEN", price=249, transfers=1,
+                        airline="DL", flight_number=1103, depart_date="2026-09-20", length=5)
         row = tracker.build_offer_row(
-            good_offer, response["dictionaries"],
-            run_timestamp="2026-07-09T08:00:00Z", origin="RDU", dest="SCL",
-            dest_region="international", depart_date="2026-11-09",
-            return_date="2026-11-17",
-        )
-        assert row["price_usd"] == 842.0
-        assert row["stops_outbound"] == 1 and row["stops_inbound"] == 1
-        assert json.loads(row["connection_airports"]) == ["ATL", "ATL"]
-        assert row["total_duration_minutes"] == 750 + 787
-        assert json.loads(row["fare_brand_names"]) == ["MAIN CABIN"] * 4
+            t, "2026-09-20", run_timestamp="2026-07-09T08:00:00Z",
+            origin="RDU", dest="DEN", dest_region="domestic", currency="usd")
+        assert row["price_usd"] == 249.0
+        assert row["return_date"] == "2026-09-25"
+        assert row["airline"] == "DL" and row["flight_number"] == "1103"
+        assert row["stops"] == 1 and row["currency"] == "USD"
 
-        outbound = json.loads(row["outbound_json"])
-        assert outbound[0]["flight_number"] == "DL1103"
-        assert outbound[0]["carrier_name"] == "DELTA AIR LINES"
-        assert outbound[1]["aircraft"] == "AIRBUS A350-900"
-        assert outbound[0]["depart_time"] == "2026-11-09T11:40:00"
+    def test_rejection_row_is_defensive(self):
+        row = tracker.build_rejection_row(
+            {"airline": "NK"}, "2026-09-20", run_timestamp="t",
+            origin="RDU", dest="DEN", dest_region="domestic", reason="blocked_carrier")
+        assert row["filter_reason"] == "blocked_carrier"
+        assert row["airline"] == "NK"
+        assert row["price_usd"] is None  # missing price didn't crash
 
 
 class _ExplodingClient:
-    """Constructing this means the budget guard failed to stop the run."""
-
-    def __init__(self, *args, **kwargs):
-        raise AssertionError("AmadeusClient constructed despite budget guard")
+    def __init__(self, *a, **k):
+        raise AssertionError("client constructed despite budget guard")
 
 
-class _EmptyClient:
-    """A client that makes calls (recording each) but returns no offers."""
+def _calendar_client(ticket_factory):
+    """Client whose prices_calendar builds tickets for each day of the month."""
+    import calendar as _cal
 
-    def __init__(self, *args, on_call=None, **kwargs):
-        self.calls_made = 0
-        self._on_call = on_call
+    class _Client:
+        def __init__(self, *a, on_call=None, **k):
+            self.calls_made = 0
+            self._on_call = on_call
 
-    def search_flight_offers(self, **kwargs):
-        self.calls_made += 1
-        if self._on_call:
-            self._on_call()
-        return {"data": [], "dictionaries": {}}
+        def prices_calendar(self, *, origin, destination, depart_month, length, currency=None):
+            self.calls_made += 1
+            if self._on_call:
+                self._on_call()
+            year, month = (int(x) for x in depart_month.split("-"))
+            days = _cal.monthrange(year, month)[1]
+            out = {}
+            for day in range(1, days + 1):
+                d = f"{year:04d}-{month:02d}-{day:02d}"
+                out[d] = ticket_factory(origin, destination, d, length, day)
+            return out
+    return _Client
 
 
 class TestBudgetGuard:
-    """The monthly api_budget guard: skips the run before any auth/network
-    when the month's used calls plus this run's planned calls exceed the cap."""
-
-    BASE_CONFIG = {
-        "origins": [
-            {"code": "GSO", "earliest_departure": "08:00"},
-            {"code": "RDU", "earliest_departure": "10:00"},
-        ],
-        "destinations": {
-            "domestic": [{"code": "DEN", "name": "Denver", "date_windows": [
-                {"depart_start": "2026-09-01", "depart_end": "2026-09-30",
-                 "trip_length_days": 5}]}],
-            "international": [{"code": "SCL", "name": "Santiago", "date_windows": [
-                {"depart_start": "2026-11-01", "depart_end": "2026-11-30",
-                 "trip_length_days": 8}]}],
-        },
-        "rotation": {"domestic_per_run": 1, "international_per_run": 1,
-                     "windows_per_run": 1, "dates_per_window": 2},
-        "search": {"adults": 1, "currency": "USD", "max_results": 20},
-        "filters": {
-            "max_price_usd": 1000, "max_stops": 1, "max_total_duration_hours": 14,
-            "min_connection_minutes": 60, "cabin": "ECONOMY",
-            "basic_economy_patterns": ["BASIC"], "blocked_carriers": ["NK"],
-        },
-    }
-    PLANNED = 8  # 2 origins x 2 destinations x 1 window x 2 dates
+    PLANNED = 6
 
     def _write(self, tmp_path, max_calls):
-        config = dict(self.BASE_CONFIG)
+        config = dict(CONFIG)
         config["api_budget"] = {"monthly_max_calls": max_calls}
         path = tmp_path / "config.yml"
         path.write_text(yaml.safe_dump(config), encoding="utf-8")
         return str(path)
 
-    def test_planned_matches_formula(self):
-        assert len(tracker.build_tasks(
-            {**self.BASE_CONFIG, "api_budget": {"monthly_max_calls": 1}}, 0, date(2026, 7, 9)
-        )) == self.PLANNED
-
     def test_guard_trips_before_any_call(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(tracker, "AmadeusClient", _ExplodingClient)
-        config_path = self._write(tmp_path, max_calls=self.PLANNED - 1)
-        db_path = str(tmp_path / "t.db")
-
-        rc = tracker.run(config_path=config_path, db_path=db_path)
-
+        monkeypatch.setattr(tracker, "TravelpayoutsClient", _ExplodingClient)
+        rc = tracker.run(config_path=self._write(tmp_path, self.PLANNED - 1),
+                         db_path=str(tmp_path / "t.db"))
         assert rc == 0
-        conn = db.connect(db_path)
+        conn = db.connect(str(tmp_path / "t.db"))
         assert conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0
         assert db.get_month_calls(conn) == 0
         conn.close()
 
-    def test_guard_allows_when_budget_sufficient(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(tracker, "AmadeusClient", _EmptyClient)
-        config_path = self._write(tmp_path, max_calls=self.PLANNED)  # boundary: == is allowed
-        db_path = str(tmp_path / "t.db")
-
-        rc = tracker.run(config_path=config_path, db_path=db_path)
-
-        assert rc == 0
-        conn = db.connect(db_path)
-        assert db.get_month_calls(conn) == self.PLANNED
-        conn.close()
-
     def test_accumulated_usage_trips_guard(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(tracker, "AmadeusClient", _ExplodingClient)
-        config_path = self._write(tmp_path, max_calls=2500)
+        monkeypatch.setattr(tracker, "TravelpayoutsClient", _ExplodingClient)
         db_path = str(tmp_path / "t.db")
         conn = db.connect(db_path)
-        db.add_api_calls(conn, 2495)  # earlier runs this month
+        db.add_api_calls(conn, 9999)
         conn.close()
-
-        rc = tracker.run(config_path=config_path, db_path=db_path)
-
-        assert rc == 0  # 2495 + 8 > 2500, so skipped
+        rc = tracker.run(config_path=self._write(tmp_path, 10000), db_path=db_path)
+        assert rc == 0  # 9999 + 6 > 10000
         conn = db.connect(db_path)
-        assert db.get_month_calls(conn) == 2495  # unchanged
+        assert db.get_month_calls(conn) == 9999
         conn.close()
 
 
-def _fixed_offers_client(offers):
-    """Build a client class that returns the same offers for every search."""
-    class _Client:
-        def __init__(self, *args, on_call=None, **kwargs):
-            self.calls_made = 0
-            self._on_call = on_call
-
-        def search_flight_offers(self, **kwargs):
-            self.calls_made += 1
-            if self._on_call:
-                self._on_call()
-            return {"data": offers, "dictionaries": {"carriers": {}, "aircraft": {}}}
-    return _Client
-
-
-class TestRejectionInstrumentation:
-    """A rejected offer is recorded in the rejections table with its reason,
-    fare brands, and carriers; a passing offer still lands in offers."""
-
-    def _config(self, tmp_path):
-        config = dict(TestBudgetGuard.BASE_CONFIG)
-        config["api_budget"] = {"monthly_max_calls": 2500}
+class TestRunFiltersAndInstruments:
+    def _config(self, tmp_path, **window):
+        config = dict(CONFIG)
+        config["api_budget"] = {"monthly_max_calls": 10000}
+        # Single near-future window we control.
+        config["destinations"] = {
+            "domestic": [{"code": "DEN", "name": "Denver", "date_windows": [window]}],
+            "international": [],
+        }
+        config["rotation"] = {"domestic_per_run": 1, "international_per_run": 0,
+                              "windows_per_run": 1}
         path = tmp_path / "c.yml"
         path.write_text(yaml.safe_dump(config), encoding="utf-8")
         return str(path)
 
-    def test_rejections_recorded_with_detail(
-        self, tmp_path, monkeypatch, good_offer, basic_offer
-    ):
-        import copy
-        blocked = copy.deepcopy(good_offer)
-        blocked["itineraries"][0]["segments"][0]["carrierCode"] = "NK"
-        offers = [good_offer, basic_offer, blocked]
-        monkeypatch.setattr(tracker, "AmadeusClient", _fixed_offers_client(offers))
+    def test_bad_tickets_recorded_as_rejections(self, tmp_path, monkeypatch):
+        def factory(origin, dest, d, length, day):
+            r = day % 4
+            if r == 0:
+                return make_ticket(origin=origin, destination=dest, depart_date=d, airline="NK")
+            if r == 1:
+                return make_ticket(origin=origin, destination=dest, depart_date=d, price=1500)
+            if r == 2:
+                return make_ticket(origin=origin, destination=dest, depart_date=d, transfers=2)
+            return make_ticket(origin=origin, destination=dest, depart_date=d, price=300, transfers=1)
 
+        monkeypatch.setattr(tracker, "TravelpayoutsClient", _calendar_client(factory))
+        cfg = self._config(tmp_path, depart_start="2026-09-01", depart_end="2026-09-30",
+                           trip_length_days=5)
         db_path = str(tmp_path / "t.db")
-        tracker.run(config_path=self._config(tmp_path), db_path=db_path)
+        tracker.run(config_path=cfg, db_path=db_path)
 
         conn = db.connect(db_path)
         reasons = {r["filter_reason"] for r in conn.execute("SELECT filter_reason FROM rejections")}
-        assert "basic_economy" in reasons
-        assert "blocked_carrier" in reasons
-
-        basic_row = conn.execute(
-            "SELECT fare_brand_names, carriers FROM rejections "
-            "WHERE filter_reason='basic_economy' LIMIT 1"
-        ).fetchone()
-        assert "BASIC ECONOMY" in basic_row["fare_brand_names"]
-        assert "DL" in basic_row["carriers"]
-
-        blocked_row = conn.execute(
-            "SELECT carriers FROM rejections WHERE filter_reason='blocked_carrier' LIMIT 1"
-        ).fetchone()
-        assert "NK" in blocked_row["carriers"]
-
-        # The good offer still passed and was stored.
-        assert conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0] >= 1
+        assert {"blocked_carrier", "max_price", "max_stops"} <= reasons
+        assert conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0] > 0
         conn.close()
 
-    def test_malformed_offer_does_not_crash_or_record(self, tmp_path, monkeypatch):
-        # An offer missing 'itineraries' throws inside evaluate_offer and is
-        # skipped (logged), not recorded as a rejection.
-        monkeypatch.setattr(tracker, "AmadeusClient", _fixed_offers_client([{"price": {}}]))
+    def test_only_dates_inside_window_stored(self, tmp_path, monkeypatch):
+        def factory(origin, dest, d, length, day):
+            return make_ticket(origin=origin, destination=dest, depart_date=d, price=300, transfers=0)
+
+        monkeypatch.setattr(tracker, "TravelpayoutsClient", _calendar_client(factory))
+        # Window is only three days, though the calendar returns the whole month.
+        cfg = self._config(tmp_path, depart_start="2026-09-10", depart_end="2026-09-12",
+                           trip_length_days=5)
         db_path = str(tmp_path / "t.db")
-        rc = tracker.run(config_path=self._config(tmp_path), db_path=db_path)
-        assert rc == 0
+        tracker.run(config_path=cfg, db_path=db_path)
+
         conn = db.connect(db_path)
-        assert conn.execute("SELECT COUNT(*) FROM rejections").fetchone()[0] == 0
-        assert conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0
+        dates = {r["depart_date"] for r in conn.execute("SELECT depart_date FROM offers")}
         conn.close()
+        # Only the three in-window dates are stored, though the calendar month
+        # returned ~30 days (both origins contribute rows for each date).
+        assert dates == {"2026-09-10", "2026-09-11", "2026-09-12"}

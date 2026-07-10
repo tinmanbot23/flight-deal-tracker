@@ -1,204 +1,96 @@
-"""Unit tests for every itinerary filter, against real Amadeus response shape."""
+"""Tests for the pure ticket filters."""
 from __future__ import annotations
 
-import pytest
-
 import filters
+from conftest import make_ticket
 
-
-class TestParseDuration:
-    def test_hours_and_minutes(self):
-        assert filters.parse_duration_minutes("PT13H30M") == 810
-
-    def test_hours_only(self):
-        assert filters.parse_duration_minutes("PT2H") == 120
-
-    def test_minutes_only(self):
-        assert filters.parse_duration_minutes("PT45M") == 45
-
-    def test_with_days(self):
-        assert filters.parse_duration_minutes("P1DT2H") == 26 * 60
-
-    def test_garbage_raises(self):
-        with pytest.raises(ValueError):
-            filters.parse_duration_minutes("13 hours")
+PATTERNS_ORIGINS = {"GSO": "08:00", "CLT": "09:00", "RDU": "10:00"}
 
 
 class TestPrice:
-    def test_under_cap_passes(self, good_offer, filters_config):
-        assert filters.price_ok(good_offer, 1000)
+    def test_under_cap_ok(self):
+        assert filters.price_ok(make_ticket(price=999), 1000)
 
-    def test_over_cap_fails(self, good_offer):
-        good_offer["price"]["grandTotal"] = "1042.00"
-        assert not filters.price_ok(good_offer, 1000)
+    def test_at_cap_ok(self):
+        assert filters.price_ok(make_ticket(price=1000), 1000)
+
+    def test_over_cap_rejected(self):
+        assert not filters.price_ok(make_ticket(price=1001), 1000)
 
 
 class TestStops:
-    def test_one_stop_passes(self, good_offer):
-        assert filters.itinerary_stops(good_offer, 0) == 1
-        assert filters.stops_ok(good_offer, 1)
+    def test_nonstop_and_one_stop_ok(self):
+        assert filters.stops_ok(make_ticket(transfers=0), 1)
+        assert filters.stops_ok(make_ticket(transfers=1), 1)
 
-    def test_two_stops_fails(self, good_offer):
-        segs = good_offer["itineraries"][0]["segments"]
-        segs.append(dict(segs[-1]))
-        assert not filters.stops_ok(good_offer, 1)
+    def test_two_stops_rejected(self):
+        assert not filters.stops_ok(make_ticket(transfers=2), 1)
 
-
-class TestDuration:
-    def test_each_direction_under_limit(self, good_offer):
-        assert filters.durations_ok(good_offer, 14)
-
-    def test_one_direction_over_limit_fails(self, good_offer):
-        good_offer["itineraries"][1]["duration"] = "PT15H10M"
-        assert not filters.durations_ok(good_offer, 14)
-
-    def test_total_duration_sums_both_directions(self, good_offer):
-        assert filters.total_duration_minutes(good_offer) == 750 + 787
-
-
-class TestConnections:
-    def test_gaps_computed(self, good_offer):
-        assert filters.connection_gaps_minutes(good_offer) == [85, 150]
-
-    def test_minimum_met(self, good_offer):
-        assert filters.connections_ok(good_offer, 60)
-
-    def test_short_connection_fails(self, good_offer):
-        # Shrink the ATL outbound connection to 40 minutes.
-        good_offer["itineraries"][0]["segments"][1]["departure"]["at"] = "2026-11-09T13:45:00"
-        assert not filters.connections_ok(good_offer, 60)
-
-    def test_connection_airports(self, good_offer):
-        assert filters.connection_airports(good_offer) == ["ATL", "ATL"]
-
-
-class TestBasicEconomy:
-    PATTERNS = ["BASIC", "LIGHT", "SAVER", "ECO BASIC"]
-
-    @pytest.mark.parametrize("brand", [
-        "BASIC ECONOMY", "Basic", "LIGHT", "Eco Light", "SAVER FARE", "ECO BASIC",
-    ])
-    def test_basic_patterns_rejected(self, brand):
-        assert filters.is_basic_economy(brand, self.PATTERNS)
-
-    @pytest.mark.parametrize("brand", ["MAIN CABIN", "COMFORT+", "ECONOMY FLEX"])
-    def test_real_brands_accepted(self, brand):
-        assert not filters.is_basic_economy(brand, self.PATTERNS)
-
-    @pytest.mark.parametrize("brand", [None, "", "   "])
-    def test_missing_brand_rejected_when_in_doubt(self, brand):
-        assert filters.is_basic_economy(brand, self.PATTERNS)
-
-    def test_good_offer_passes(self, good_offer, filters_config):
-        assert filters.fare_brands_ok(good_offer, filters_config["basic_economy_patterns"])
-
-    def test_basic_offer_rejected(self, basic_offer, filters_config):
-        assert not filters.fare_brands_ok(basic_offer, filters_config["basic_economy_patterns"])
-
-    def test_one_unbranded_segment_rejects_whole_offer(self, good_offer, filters_config):
-        details = good_offer["travelerPricings"][0]["fareDetailsBySegment"]
-        del details[2]["brandedFare"], details[2]["brandedFareLabel"]
-        assert not filters.fare_brands_ok(good_offer, filters_config["basic_economy_patterns"])
-
-    def test_missing_fare_details_padded_and_rejected(self, good_offer, filters_config):
-        good_offer["travelerPricings"][0]["fareDetailsBySegment"] = []
-        assert filters.fare_brand_names(good_offer) == [None] * 4
-        assert not filters.fare_brands_ok(good_offer, filters_config["basic_economy_patterns"])
-
-
-class TestFareBrandWhitelist:
-    PATTERNS = ["BASIC", "LIGHT", "SAVER", "ECO BASIC"]
-
-    def test_whitelisted_brand_exempted_from_pattern(self):
-        # "ECONOMY LIGHT PLUS" contains LIGHT but is whitelisted.
-        assert filters.is_basic_economy("ECONOMY LIGHT PLUS", self.PATTERNS)
-        assert not filters.is_basic_economy(
-            "ECONOMY LIGHT PLUS", self.PATTERNS, ["Economy Light Plus"]
-        )
-
-    def test_whitelist_is_exact_match_not_substring(self):
-        # Whitelisting the full name must not exempt a different LIGHT fare.
-        assert filters.is_basic_economy("ECONOMY LIGHT", self.PATTERNS, ["Economy Light Plus"])
-
-    def test_whitelist_case_insensitive(self):
-        assert not filters.is_basic_economy("eco basic go", self.PATTERNS, ["ECO BASIC GO"])
-
-    def test_missing_brand_still_rejected_despite_whitelist(self):
-        assert filters.is_basic_economy(None, self.PATTERNS, ["anything"])
-        assert filters.is_basic_economy("  ", self.PATTERNS, ["anything"])
-
-    def test_fare_brands_ok_threads_whitelist(self, good_offer):
-        details = good_offer["travelerPricings"][0]["fareDetailsBySegment"]
-        for d in details:
-            d["brandedFareLabel"] = "ECONOMY LIGHT PLUS"
-        assert not filters.fare_brands_ok(good_offer, self.PATTERNS)
-        assert filters.fare_brands_ok(good_offer, self.PATTERNS, ["ECONOMY LIGHT PLUS"])
-
-    def test_evaluate_offer_respects_whitelist(self, good_offer, filters_config):
-        details = good_offer["travelerPricings"][0]["fareDetailsBySegment"]
-        for d in details:
-            d["brandedFareLabel"] = "ECONOMY LIGHT PLUS"
-        assert filters.evaluate_offer(good_offer, filters_config, "10:00") == "basic_economy"
-        whitelisted = {**filters_config, "fare_brand_whitelist": ["ECONOMY LIGHT PLUS"]}
-        assert filters.evaluate_offer(good_offer, whitelisted, "10:00") is None
-
-
-class TestBlockedCarriers:
-    BLOCKED = ["NK", "F9", "G4", "XP", "SY", "OG", "N0", "MX", "Y4", "VB"]
-
-    def test_clean_offer_passes(self, good_offer):
-        assert filters.carriers_ok(good_offer, self.BLOCKED)
-
-    def test_marketing_carrier_blocked(self, good_offer):
-        good_offer["itineraries"][0]["segments"][0]["carrierCode"] = "NK"
-        assert not filters.carriers_ok(good_offer, self.BLOCKED)
-
-    def test_operating_carrier_blocked(self, good_offer):
-        # Marketed by DL but operated by Frontier on one segment.
-        good_offer["itineraries"][1]["segments"][1]["operating"] = {"carrierCode": "F9"}
-        assert not filters.carriers_ok(good_offer, self.BLOCKED)
+    def test_missing_transfers_treated_as_zero(self):
+        t = make_ticket()
+        del t["transfers"]
+        assert filters.stops(t) == 0
 
 
 class TestDepartureFloor:
-    def test_1140_departure_meets_gso_floor(self, good_offer):
-        assert filters.outbound_departure_ok(good_offer, "08:00")
+    def test_at_or_after_floor_ok(self):
+        assert filters.outbound_departure_ok(make_ticket(dep_hhmm="10:00"), "10:00")
+        assert filters.outbound_departure_ok(make_ticket(dep_hhmm="14:30"), "10:00")
 
-    def test_1140_departure_meets_rdu_floor(self, good_offer):
-        assert filters.outbound_departure_ok(good_offer, "10:00")
+    def test_before_floor_rejected(self):
+        assert not filters.outbound_departure_ok(make_ticket(dep_hhmm="09:59"), "10:00")
 
-    def test_early_departure_fails_floor(self, good_offer):
-        good_offer["itineraries"][0]["segments"][0]["departure"]["at"] = "2026-11-09T07:30:00"
-        assert not filters.outbound_departure_ok(good_offer, "08:00")
+    def test_each_origin_has_its_own_floor(self):
+        early = make_ticket(dep_hhmm="08:30")
+        assert filters.outbound_departure_ok(early, "08:00")       # GSO
+        assert not filters.outbound_departure_ok(early, "09:00")   # CLT
 
-    def test_floor_ignores_inbound_and_connections(self, good_offer):
-        # Early inbound departure must not trip the outbound-only floor.
-        good_offer["itineraries"][1]["segments"][0]["departure"]["at"] = "2026-11-17T05:05:00"
-        assert filters.outbound_departure_ok(good_offer, "10:00")
+
+class TestBlockedCarriers:
+    BLOCKED = ["NK", "F9", "G4"]
+
+    def test_clean_airline_ok(self):
+        assert filters.carriers_ok(make_ticket(airline="DL"), self.BLOCKED)
+
+    def test_blocked_airline_rejected(self):
+        assert not filters.carriers_ok(make_ticket(airline="NK"), self.BLOCKED)
+
+    def test_missing_airline_rejected(self):
+        t = make_ticket()
+        t["airline"] = None
+        assert not filters.carriers_ok(t, self.BLOCKED)
 
 
 class TestOfferHash:
-    def test_stable(self, good_offer):
-        import copy
-        assert filters.offer_hash(good_offer) == filters.offer_hash(copy.deepcopy(good_offer))
+    def test_stable_for_same_ticket(self):
+        assert filters.offer_hash(make_ticket()) == filters.offer_hash(make_ticket())
 
-    def test_differs_by_fare_brand(self, good_offer, basic_offer):
-        # Same flights, different brand => different hash.
-        assert filters.offer_hash(good_offer) != filters.offer_hash(basic_offer)
+    def test_differs_by_date(self):
+        a = filters.offer_hash(make_ticket(depart_date="2026-09-20"))
+        b = filters.offer_hash(make_ticket(depart_date="2026-09-21"))
+        assert a != b
 
-    def test_differs_by_date(self, good_offer):
-        import copy
-        moved = copy.deepcopy(good_offer)
-        for seg in filters.all_segments(moved):
-            seg["departure"]["at"] = seg["departure"]["at"].replace("-11-", "-12-")
-        assert filters.offer_hash(good_offer) != filters.offer_hash(moved)
+    def test_differs_by_flight_number(self):
+        a = filters.offer_hash(make_ticket(flight_number=1))
+        b = filters.offer_hash(make_ticket(flight_number=2))
+        assert a != b
 
 
 class TestEvaluateOffer:
-    def test_good_offer_passes_all(self, good_offer, filters_config):
-        assert filters.evaluate_offer(good_offer, filters_config, "10:00") is None
+    def test_clean_ticket_passes(self, filters_config):
+        assert filters.evaluate_offer(make_ticket(), filters_config, "10:00") is None
 
-    def test_reports_first_failing_filter(self, basic_offer, filters_config):
-        assert filters.evaluate_offer(basic_offer, filters_config, "10:00") == "basic_economy"
+    def test_blocked_carrier_reported_first(self, filters_config):
+        # A blocked, overpriced ticket reports blocked_carrier (checked first).
+        t = make_ticket(airline="NK", price=5000)
+        assert filters.evaluate_offer(t, filters_config, "10:00") == "blocked_carrier"
 
-    def test_departure_floor_enforced_per_origin(self, good_offer, filters_config):
-        assert filters.evaluate_offer(good_offer, filters_config, "12:00") == "earliest_departure"
+    def test_price_reason(self, filters_config):
+        assert filters.evaluate_offer(make_ticket(price=2000), filters_config, "10:00") == "max_price"
+
+    def test_stops_reason(self, filters_config):
+        assert filters.evaluate_offer(make_ticket(transfers=3), filters_config, "10:00") == "max_stops"
+
+    def test_departure_reason(self, filters_config):
+        t = make_ticket(dep_hhmm="06:00")
+        assert filters.evaluate_offer(t, filters_config, "10:00") == "earliest_departure"

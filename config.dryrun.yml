@@ -1,7 +1,6 @@
 # Targeted dry-run config: GSO + CLT + RDU -> SCL and MCO only.
-# Rotation is set to cover the whole (single-item) destination lists every
-# run, so one pass hits both SCL and MCO from all three origins.
-# Cost: 3 origins x 2 destinations x 1 window x 2 dates = 12 API calls.
+# Rotation covers the whole (single-item) destination lists every run, so one
+# pass hits both SCL and MCO from all three origins.
 
 origins:
   - code: GSO
@@ -16,36 +15,28 @@ destinations:
     - code: MCO
       name: Orlando
       date_windows:
-        - {depart_start: "2026-09-15", depart_end: "2026-12-10", trip_length_days: 5}
+        - {depart_start: "2026-09-15", depart_end: "2026-10-31", trip_length_days: 5}
   international:
     - code: SCL
       name: Santiago
       date_windows:
-        - {depart_start: "2026-10-15", depart_end: "2026-12-10", trip_length_days: 8}
+        - {depart_start: "2026-10-15", depart_end: "2026-11-30", trip_length_days: 8}
 
 filters:
   max_price_usd: 1000
   max_stops: 1
-  max_total_duration_hours: 14
-  min_connection_minutes: 60
-  cabin: "ECONOMY"
-  basic_economy_patterns: ["BASIC", "LIGHT", "SAVER", "ECO BASIC"]
-  fare_brand_whitelist: []
   blocked_carriers: [NK, F9, G4, XP, SY, OG, N0, MX, Y4, VB]
 
 api_budget:
-  monthly_max_calls: 2500
+  monthly_max_calls: 10000
 
 rotation:
   domestic_per_run: 1
   international_per_run: 1
   windows_per_run: 1
-  dates_per_window: 2
 
 search:
-  adults: 1
-  currency: USD
-  max_results: 20
+  currency: usd
 
 ranking:
   history_days: 30

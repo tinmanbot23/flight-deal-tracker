@@ -1,14 +1,12 @@
 """Rank the latest run's offers into Top-3 domestic and international deals.
 
 Value score: price divided by the route's trailing 30-day median. When a
-route has thin history (< ranking.min_history_offers prior offers), fall
-back to absolute price normalized against filters.max_price_usd so the two
-scales stay comparable. Ties break on shorter total duration, then fewer
-stops. The top 3 never contains two deals for the same destination.
+route has thin history (< ranking.min_history_offers prior offers), fall back
+to absolute price normalized by filters.max_price_usd. Ties break on fewer
+stops, then lower price. The top 3 never contains two deals for one destination.
 """
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 import statistics
@@ -32,12 +30,9 @@ def value_score(
 
 
 def row_to_deal(row: sqlite3.Row) -> dict[str, Any]:
-    """Convert a stored offer row into a plain dict with parsed JSON fields."""
+    """Convert a stored offer row into a plain dict."""
     deal = dict(row)
-    deal["outbound"] = json.loads(deal.pop("outbound_json"))
-    deal["inbound"] = json.loads(deal.pop("inbound_json"))
-    deal["connection_airports"] = json.loads(deal["connection_airports"])
-    deal["fare_brands"] = json.loads(deal.pop("fare_brand_names"))
+    deal.pop("id", None)
     return deal
 
 
@@ -62,13 +57,7 @@ def top_deals(
         )
         scored.append(deal)
 
-    scored.sort(
-        key=lambda d: (
-            d["value_score"],
-            d["total_duration_minutes"],
-            d["stops_outbound"] + d["stops_inbound"],
-        )
-    )
+    scored.sort(key=lambda d: (d["value_score"], d["stops"], d["price_usd"]))
 
     top: list[dict[str, Any]] = []
     seen_destinations: set[str] = set()

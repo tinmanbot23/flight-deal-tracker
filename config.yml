@@ -135,50 +135,37 @@ destinations:
       date_windows:
         - {depart_start: "2026-09-15", depart_end: "2026-11-15", trip_length_days: 7}
 
+# Data source: Travelpayouts (Aviasales) cached flight-prices calendar API.
+# The cached data has no branded fares or per-segment routing, so the
+# main-cabin, connection-minimum, and per-direction duration filters that the
+# old Amadeus version supported are not available here.
 filters:
   max_price_usd: 1000
   max_stops: 1
-  # Applied to EACH direction separately (outbound and inbound itinerary).
-  # A round-trip-total ceiling of 14h would reject nearly all international routes.
-  max_total_duration_hours: 14
-  min_connection_minutes: 60
-  cabin: "ECONOMY"
-  # Main-cabin-or-better only: reject any offer whose branded fare name for
-  # ANY segment matches one of these (case-insensitive substring), or whose
-  # fare brand is missing/unidentifiable. When in doubt, reject.
-  basic_economy_patterns: ["BASIC", "LIGHT", "SAVER", "ECO BASIC"]
-  # Exact fare-brand names (case-insensitive) that are always allowed, even if
-  # they contain a trigger word above. Escape hatch for a legitimate branded
-  # fare wrongly caught by a pattern; populate from the basic-economy
-  # misclassification report in analyze.py. A missing/blank brand is still
-  # rejected regardless of this list.
-  fare_brand_whitelist: []
-  # Spirit, Frontier, Allegiant, Avelo, Sun Country, Play, Norse, Breeze,
-  # Volaris, VivaAerobus. Rejected if ANY segment is marketed OR operated
-  # by one of these.
+  # Rejected if the (marketing/validating) airline is one of: Spirit, Frontier,
+  # Allegiant, Avelo, Sun Country, Play, Norse, Breeze, Volaris, VivaAerobus.
+  # Cached data exposes only the validating airline, so a blocked *operating*
+  # carrier on a codeshare cannot be detected.
   blocked_carriers: [NK, F9, G4, XP, SY, OG, N0, MX, Y4, VB]
 
 api_budget:
   # Skip the run (with a logged warning) if this month's recorded call count
-  # plus the planned calls for the run would exceed this.
-  monthly_max_calls: 2500
+  # plus the planned calls for the run would exceed this. One call fetches a
+  # whole month of departure dates for a route, so budgets go far.
+  monthly_max_calls: 10000
 
 # Call-budget strategy. Per run:
 #   3 origins x (domestic_per_run + international_per_run) destinations
-#     x windows_per_run x dates_per_window  API calls.
-# Defaults: 3 x 4 x 1 x 2 = 24 calls/run -> ~2,160/month at 3 runs/day.
+#     x windows_per_run windows x (calendar months spanning each window).
 # Destinations rotate deterministically (run counter stored in prices.db),
 # so every destination is revisited every ~2.5 days.
 rotation:
   domestic_per_run: 2
   international_per_run: 2
   windows_per_run: 1
-  dates_per_window: 2
 
 search:
-  adults: 1
-  currency: USD
-  max_results: 20
+  currency: usd
 
 ranking:
   history_days: 30

@@ -1,25 +1,24 @@
-"""Targeted dry run: GSO+CLT+RDU -> SCL and MCO, against Amadeus TEST.
+"""Targeted dry run: GSO+CLT+RDU -> SCL and MCO, against Travelpayouts.
 
 Loads a .env (if present), runs the tracker with config.dryrun.yml into an
 isolated database, then prints the rows written, the Top 3 per region, writes
-docs/data/prices.json for the dashboard, and audits every stored offer for
-filter leaks.
+docs/data/prices.json for the dashboard, and audits stored offers.
 
 Usage:
-    python run_dryrun.py               # live: needs AMADEUS_* creds (.env or env)
-    python run_dryrun.py --mock        # offline: synthetic offers, no network
+    python run_dryrun.py               # live: needs TRAVELPAYOUTS_TOKEN
+    python run_dryrun.py --mock        # offline: synthetic calendar, no network
 
---mock injects deliberately bad offers (basic economy, a blocked carrier, an
-overpriced fare, a too-short connection) alongside good ones to prove the
-filters reject them and the audit finds zero leaks in what gets stored.
+--mock injects, across the month, tickets that violate each filter (blocked
+carrier, overpriced, too many stops, too-early departure) alongside good ones
+to prove the filters reject them and the audit finds zero leaks.
 """
 from __future__ import annotations
 
 import argparse
+import calendar as _calendar
 import logging
 import os
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -45,109 +44,74 @@ def load_dotenv(path: Path) -> bool:
 
 
 # --------------------------------------------------------------------------
-# Mock Amadeus client (offline mode only)
+# Mock Travelpayouts client (offline mode only)
 # --------------------------------------------------------------------------
-HUBS = {"GSO": "ATL", "CLT": "MIA", "RDU": "ATL"}
-CARRIER_NAMES = {"DL": "DELTA AIR LINES", "AA": "AMERICAN AIRLINES", "NK": "SPIRIT AIRLINES"}
-
-
-def _seg(seg_id, carrier, num, dep, dep_t, arr, arr_t, dur, operating=None):
+def _ticket(origin, dest, depart_date, length, price, airline, flight_number,
+            transfers, dep_hhmm="11:40"):
+    import datetime as _dt
+    d = _dt.date.fromisoformat(depart_date)
+    ret = (d + _dt.timedelta(days=length)).isoformat()
     return {
-        "id": str(seg_id), "carrierCode": carrier, "number": num,
-        "aircraft": {"code": "321"}, "operating": {"carrierCode": operating or carrier},
-        "duration": dur,
-        "departure": {"iataCode": dep, "at": dep_t},
-        "arrival": {"iataCode": arr, "at": arr_t},
-        "numberOfStops": 0,
+        "origin": origin, "destination": dest,
+        "price": price, "transfers": transfers,
+        "airline": airline, "flight_number": flight_number,
+        "departure_at": f"{depart_date}T{dep_hhmm}:00Z",
+        "return_at": f"{ret}T16:40:00Z",
+        "expires_at": f"{depart_date}T00:00:00Z",
     }
 
 
-def _offer(offer_id, price, brand, origin, dest, depart, ret, carrier="DL",
-           operating=None, out_conn_minutes=90):
-    """One round-trip offer in Amadeus response shape."""
-    hub = HUBS[origin]
-    d, r = depart, ret
-    from datetime import datetime as _dt, timedelta as _td
-    mid_arr_dt = _dt.fromisoformat(f"{d}T13:10:00")
-    mid_arr = mid_arr_dt.isoformat()
-    mid_dep = (mid_arr_dt + _td(minutes=out_conn_minutes)).isoformat()
-    out = [
-        _seg(f"{offer_id}a", carrier, "1103", origin, f"{d}T11:40:00", hub, mid_arr, "PT1H30M", operating),
-        _seg(f"{offer_id}b", carrier, "147", hub, mid_dep, dest, f"{d}T20:40:00", "PT6H10M", operating),
-    ]
-    inb = [
-        _seg(f"{offer_id}c", carrier, "146", dest, f"{r}T08:05:00", hub, f"{r}T15:10:00", "PT6H5M", operating),
-        _seg(f"{offer_id}d", carrier, "2088", hub, f"{r}T16:40:00", origin, f"{r}T18:12:00", "PT1H32M", operating),
-    ]
-    fare = [{"segmentId": s["id"], "cabin": "ECONOMY",
-             "brandedFare": brand.replace(" ", ""), "brandedFareLabel": brand}
-            for s in out + inb]
-    return {
-        "type": "flight-offer", "id": str(offer_id),
-        "itineraries": [
-            {"duration": "PT9H0M", "segments": out},
-            {"duration": "PT10H7M", "segments": inb},
-        ],
-        "price": {"currency": "USD", "total": f"{price:.2f}", "grandTotal": f"{price:.2f}"},
-        "validatingAirlineCodes": [carrier],
-        "travelerPricings": [{
-            "travelerId": "1", "fareOption": "STANDARD", "travelerType": "ADULT",
-            "price": {"currency": "USD", "total": f"{price:.2f}"},
-            "fareDetailsBySegment": fare,
-        }],
-    }
+class MockTravelpayoutsClient:
+    """Stand-in returning a calendar with a mix of good and bad tickets."""
 
-
-class MockAmadeusClient:
-    """Stand-in returning a fixed mix of good and deliberately bad offers."""
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, on_call=None, **kwargs):
         self.calls_made = 0
-        self.on_call = kwargs.get("on_call")
+        self.on_call = on_call
 
-    def search_flight_offers(self, *, origin, destination, departure_date,
-                             return_date, **kwargs):
+    def prices_calendar(self, *, origin, destination, depart_month, length, currency=None):
         self.calls_made += 1
         if self.on_call:
             self.on_call()
         base = 780 if destination == "SCL" else 240
-        d, r = departure_date, return_date
-        data = [
-            # Good main-cabin offers (should pass).
-            _offer(1, base + 62, "MAIN CABIN", origin, destination, d, r, "DL"),
-            _offer(2, base + 9, "MAIN CABIN", origin, destination, d, r, "AA"),
-            # Basic economy (must be rejected).
-            _offer(3, base - 40, "BASIC ECONOMY", origin, destination, d, r, "DL"),
-            # Blocked carrier, operated by Spirit (must be rejected).
-            _offer(4, base - 10, "MAIN CABIN", origin, destination, d, r, "AA", operating="NK"),
-            # Over price cap (must be rejected).
-            _offer(5, 1450, "MAIN CABIN", origin, destination, d, r, "DL"),
-            # Too-short connection: 30 min (must be rejected).
-            _offer(6, base + 5, "MAIN CABIN", origin, destination, d, r, "AA", out_conn_minutes=30),
-        ]
-        return {"data": data, "dictionaries": {"carriers": CARRIER_NAMES,
-                                               "aircraft": {"321": "AIRBUS A321"}}}
+        year, month = (int(x) for x in depart_month.split("-"))
+        days = _calendar.monthrange(year, month)[1]
+        data = {}
+        for day in range(1, days + 1):
+            depart = f"{year:04d}-{month:02d}-{day:02d}"
+            r = day % 7
+            if r == 0:      # blocked carrier (Spirit)
+                t = _ticket(origin, destination, depart, length, base + 20, "NK", 100 + day, 1)
+            elif r == 1:    # over price cap
+                t = _ticket(origin, destination, depart, length, 1450, "DL", 100 + day, 1)
+            elif r == 2:    # too many stops
+                t = _ticket(origin, destination, depart, length, base + 15, "AA", 100 + day, 2)
+            elif r == 3:    # departs too early (07:00 < every origin floor)
+                t = _ticket(origin, destination, depart, length, base + 5, "DL", 100 + day, 1, "07:00")
+            else:           # good
+                t = _ticket(origin, destination, depart, length, base + day, "DL", 100 + day, day % 2)
+            data[depart] = t
+        return data
 
 
 # --------------------------------------------------------------------------
 def print_rows(conn):
     rows = conn.execute(
         "SELECT origin, dest, dest_region, depart_date, return_date, price_usd, "
-        "stops_outbound, stops_inbound, fare_brand_names FROM offers ORDER BY dest_region, price_usd"
+        "airline, flight_number, stops FROM offers ORDER BY dest_region, price_usd LIMIT 40"
     ).fetchall()
-    print(f"\n=== Rows written to prices.db: {len(rows)} ===")
-    print(f"{'ORIG':4} {'DEST':4} {'REGION':13} {'DEPART':10} {'RETURN':10} {'PRICE':>7}  STOPS  BRAND")
+    total = conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0]
+    print(f"\n=== Rows written to prices.db: {total} (showing up to 40) ===")
+    print(f"{'ORIG':4} {'DEST':4} {'REGION':13} {'DEPART':10} {'RETURN':10} {'PRICE':>7}  AIR  FLT   STOPS")
     for r in rows:
-        import json as _j
-        brand = next((b for b in _j.loads(r["fare_brand_names"]) if b), "?")
         print(f"{r['origin']:4} {r['dest']:4} {r['dest_region']:13} {r['depart_date']:10} "
-              f"{r['return_date']:10} ${r['price_usd']:>6.0f}  {r['stops_outbound']}/{r['stops_inbound']}    {brand}")
-    return len(rows)
+              f"{r['return_date']:10} ${r['price_usd']:>6.0f}  {str(r['airline']):3}  "
+              f"{str(r['flight_number']):4}  {r['stops']}")
+    return total
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mock", action="store_true", help="Use synthetic offers, no network.")
+    parser.add_argument("--mock", action="store_true", help="Use synthetic data, no network.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -161,17 +125,15 @@ def main() -> int:
 
     import tracker
     if args.mock:
-        tracker.AmadeusClient = MockAmadeusClient
-        print("MODE: MOCK (synthetic offers, includes deliberately bad ones)")
+        tracker.TravelpayoutsClient = MockTravelpayoutsClient
+        print("MODE: MOCK (synthetic calendar, includes deliberately bad tickets)")
     else:
-        if not os.environ.get("AMADEUS_CLIENT_ID") or not os.environ.get("AMADEUS_CLIENT_SECRET"):
-            print("\nERROR: AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET not set.")
-            print("Add them to flight-deal-tracker/.env or the environment, or run with --mock.")
+        if not os.environ.get("TRAVELPAYOUTS_TOKEN"):
+            print("\nERROR: TRAVELPAYOUTS_TOKEN not set.")
+            print("Add it to flight-deal-tracker/.env or the environment, or run with --mock.")
             return 2
-        os.environ.setdefault("AMADEUS_ENV", "test")
-        print(f"MODE: LIVE (Amadeus {os.environ.get('AMADEUS_ENV')})")
+        print("MODE: LIVE (Travelpayouts)")
 
-    # 1. Track.
     rc = tracker.run(config_path=DRYRUN_CONFIG, db_path=DRYRUN_DB)
     if rc != 0:
         return rc
@@ -182,9 +144,8 @@ def main() -> int:
     import audit
 
     conn = db.connect(DRYRUN_DB)
-    n_rows = print_rows(conn)
+    print_rows(conn)
 
-    # 2. Top 3.
     config = tracker.load_config(DRYRUN_CONFIG)
     tops = rank.rank_all(conn, config)
     from alerts import format_deal
@@ -197,18 +158,18 @@ def main() -> int:
         for i, d in enumerate(deals, 1):
             print(f"  {i}. {format_deal(d)}  [score {d['value_score']:.2f}]")
 
-    # 3. Export for the dashboard.
     export.main()
 
-    # 4. Audit: catch anything that slipped past a filter.
     leaks = audit.audit_run(conn, config)
     print("\n=== Filter-leak audit ===")
     if not leaks:
-        print(f"  CLEAN: all {n_rows} stored offers satisfy every filter.")
+        total = conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0]
+        print(f"  CLEAN: all {total} stored offers satisfy every filter.")
     else:
         print(f"  LEAKS FOUND in {len(leaks)} offer(s):")
         for h, problems in leaks.items():
-            print(f"    {h}: {'; '.join(problems)}")
+            print(f"    {h}: {problems}")
+    conn.close()
     return 0 if not leaks else 1
 
 

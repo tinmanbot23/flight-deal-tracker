@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import requests
@@ -20,51 +20,50 @@ log = logging.getLogger("alerts")
 
 PUSHOVER_URL = "https://api.pushover.net/1/messages.json"
 
+# Friendly names for the airlines that turn up most on these routes; unknown
+# codes fall back to the raw IATA code.
+AIRLINE_NAMES = {
+    "DL": "Delta", "AA": "American", "UA": "United", "B6": "JetBlue",
+    "AS": "Alaska", "WN": "Southwest", "AC": "Air Canada", "LH": "Lufthansa",
+    "BA": "British Airways", "AF": "Air France", "KL": "KLM", "IB": "Iberia",
+    "TP": "TAP", "EI": "Aer Lingus", "AV": "Avianca", "CM": "Copa",
+    "LA": "LATAM", "AM": "Aeroméxico",
+}
 
-def fmt_clock(iso_timestamp: str) -> str:
-    """'2026-11-09T11:40:00' -> '11:40a'."""
-    moment = datetime.fromisoformat(iso_timestamp)
-    hour = moment.hour % 12 or 12
-    suffix = "a" if moment.hour < 12 else "p"
-    return f"{hour}:{moment.minute:02d}{suffix}"
 
-
-def fmt_leg(segments: list[dict[str, Any]]) -> str:
-    """One itinerary as 'DL1103 RDU 11:40a→ATL 1:05p, DL147 ATL 3:55p→SCL 5:10a+1'."""
-    leg_start = date.fromisoformat(segments[0]["depart_time"][:10])
-    parts = []
-    for seg in segments:
-        arrival_date = date.fromisoformat(seg["arrive_time"][:10])
-        plus = (arrival_date - leg_start).days
-        plus_marker = f"+{plus}" if plus > 0 else ""
-        parts.append(
-            f"{seg['flight_number']} {seg['depart_airport']} "
-            f"{fmt_clock(seg['depart_time'])}→{seg['arrive_airport']} "
-            f"{fmt_clock(seg['arrive_time'])}{plus_marker}"
-        )
-    return ", ".join(parts)
+def airline_label(code: str | None) -> str:
+    """'DL' -> 'Delta (DL)'; unknown/None -> the code or '?'."""
+    if not code:
+        return "?"
+    name = AIRLINE_NAMES.get(code)
+    return f"{name} ({code})" if name else code
 
 
 def fmt_date_range(depart: str, return_: str) -> str:
-    """'2026-11-09', '2026-11-17' -> 'Nov 9–17' (or 'Nov 28–Dec 5')."""
+    """'2026-11-09', '2026-11-17' -> 'Nov 9-17' (or 'Nov 28-Dec 5')."""
     start = date.fromisoformat(depart)
+    if not return_:
+        return f"{start.strftime('%b')} {start.day}"
     end = date.fromisoformat(return_)
     if start.month == end.month:
-        return f"{start.strftime('%b')} {start.day}–{end.day}"
-    return f"{start.strftime('%b')} {start.day}–{end.strftime('%b')} {end.day}"
+        return f"{start.strftime('%b')} {start.day}-{end.day}"
+    return f"{start.strftime('%b')} {start.day}-{end.strftime('%b')} {end.day}"
+
+
+def stops_label(stops: int) -> str:
+    """0 -> 'nonstop', 1 -> '1 stop', n -> 'n stops'."""
+    return "nonstop" if stops == 0 else (f"{stops} stop" if stops == 1 else f"{stops} stops")
 
 
 def format_deal(deal: dict[str, Any]) -> str:
-    """Bookable one-line summary of a deal, e.g.
-    'RDU→SCL $842 · Delta Air Lines DL1103 RDU 11:40a→ATL 1:05p, ... · Main Cabin · Nov 9–17'.
-    """
-    carrier = deal["outbound"][0]["carrier_name"].title()
-    brand = next((b for b in deal["fare_brands"] if b), "?")
+    """Bookable one-line summary, e.g.
+    'RDU->DEN $249 · Delta (DL) 1103 · nonstop · Nov 9-14'."""
+    flight = f" {deal['flight_number']}" if deal.get("flight_number") else ""
     return (
-        f"{deal['origin']}→{deal['dest']} ${deal['price_usd']:.0f} · "
-        f"{carrier} {fmt_leg(deal['outbound'])} · "
-        f"{str(brand).title()} · "
-        f"{fmt_date_range(deal['depart_date'], deal['return_date'])}"
+        f"{deal['origin']}->{deal['dest']} ${deal['price_usd']:.0f} · "
+        f"{airline_label(deal.get('airline'))}{flight} · "
+        f"{stops_label(int(deal['stops']))} · "
+        f"{fmt_date_range(deal['depart_date'], deal.get('return_date', ''))}"
     )
 
 

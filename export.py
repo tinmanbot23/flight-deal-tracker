@@ -39,15 +39,12 @@ def build_export(conn, config: dict) -> dict[str, Any]:
             "region": row["dest_region"],
             "offers": [],
         })
-        deal = rank.row_to_deal(row)
-        deal.pop("id", None)
-        route["offers"].append(deal)
+        route["offers"].append(rank.row_to_deal(row))
 
     tops = rank.rank_all(conn, config)
     for deals in tops.values():
         for deal in deals:
             deal["dest_name"] = names.get(deal["dest"], deal["dest"])
-            deal.pop("id", None)
 
     return {
         "generated_at": db.utc_now_iso(),

@@ -1,12 +1,10 @@
-"""Read-only analysis of recent tracker data. Answers three questions:
+"""Read-only analysis of recent tracker data. Answers:
 
-  1. How many offers did each filter reject (per filter)?
+  1. How many tickets did each filter reject (per filter)?
   2. Which routes never return a qualifying fare (drop candidates)?
-  3. Is basic-economy detection catching branded fares worth whitelisting?
 
-Requires the `rejections` instrumentation (see db.py / tracker.py): rejected
-offers and their reasons are recorded there. Runs never call the API — this
-only reads prices.db.
+Requires the `rejections` instrumentation (see db.py / tracker.py). Runs make
+no API calls — this only reads prices.db.
 
 Usage:
     python analyze.py [--days 7] [--config config.yml] [--db prices.db]
@@ -14,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from collections import Counter
 from typing import Any, Iterable, Mapping
@@ -69,72 +66,18 @@ def route_health(
     return health
 
 
-def basic_economy_candidates(
-    rejection_rows: Iterable[Row], patterns: list[str]
-) -> dict[str, Any]:
-    """Distinct fare-brand names rejected as basic economy, ranked by how many
-    offers carried them, with the trigger pattern(s) that matched. These are
-    the review set for the fare_brand_whitelist. Offers rejected only for a
-    missing/blank brand are counted separately (not whitelistable)."""
-    brand_offers: Counter = Counter()
-    brand_patterns: dict[str, list[str]] = {}
-    missing_brand_offers = 0
-    total_basic = 0
-
-    for r in rejection_rows:
-        if r["filter_reason"] != "basic_economy":
-            continue
-        total_basic += 1
-        brands = json.loads(r["fare_brand_names"]) if r["fare_brand_names"] else []
-        row_brands: set[str] = set()
-        has_missing = False
-        for b in brands:
-            if b is None or not str(b).strip():
-                has_missing = True
-                continue
-            matched = [p for p in patterns if p.upper() in str(b).upper()]
-            if matched:
-                key = str(b).strip()
-                row_brands.add(key)
-                brand_patterns[key] = matched
-        for key in row_brands:
-            brand_offers[key] += 1
-        if has_missing and not row_brands:
-            missing_brand_offers += 1
-
-    candidates = [
-        {"brand": brand, "offers": count, "matched_patterns": brand_patterns[brand]}
-        for brand, count in brand_offers.most_common()
-    ]
-    return {
-        "candidates": candidates,
-        "missing_brand_offers": missing_brand_offers,
-        "total_basic_rejections": total_basic,
-    }
-
-
-# --------------------------------------------------------------------------
-# Text report
-# --------------------------------------------------------------------------
-def format_report(
-    days: int,
-    tally: Counter,
-    health: list[dict[str, Any]],
-    basic: dict[str, Any],
-) -> str:
+def format_report(days: int, tally: Counter, health: list[dict[str, Any]]) -> str:
     lines: list[str] = [f"=== Tracker analysis · trailing {days} days ===", ""]
 
-    # 1. Per-filter rejection tally.
     total = sum(tally.values())
-    lines.append(f"1. FILTER REJECTIONS  ({total} offers rejected)")
+    lines.append(f"1. FILTER REJECTIONS  ({total} tickets rejected)")
     if total == 0:
-        lines.append("   (no rejections recorded — has the tracker run since instrumentation landed?)")
+        lines.append("   (no rejections recorded — has the tracker run in this window?)")
     else:
         for reason, count in tally.most_common():
             lines.append(f"   {reason:18} {count:6d}  ({100 * count / total:4.1f}%)")
     lines.append("")
 
-    # 2. Route health / drop candidates.
     drop = [h for h in health if h["status"] == "drop_candidate"]
     no_data = [h for h in health if h["status"] == "no_data"]
     healthy = [h for h in health if h["status"] == "healthy"]
@@ -154,22 +97,6 @@ def format_report(
         lines.append("     " + ", ".join(f"{h['origin']}->{h['dest']}" for h in no_data))
     else:
         lines.append("     (none)")
-    lines.append("")
-
-    # 3. Basic-economy whitelist review.
-    lines.append(
-        f"3. BASIC-ECONOMY REVIEW  ({basic['total_basic_rejections']} basic-economy "
-        f"rejections; {basic['missing_brand_offers']} for missing/blank brand only)"
-    )
-    lines.append("   Distinct branded fares rejected — review for fare_brand_whitelist:")
-    if basic["candidates"]:
-        for c in basic["candidates"]:
-            pats = ", ".join(c["matched_patterns"])
-            lines.append(f"     {c['brand']:32} {c['offers']:5d} offers  (matched: {pats})")
-    else:
-        lines.append("     (none — no named brands were rejected as basic economy)")
-    lines.append("")
-    lines.append("   NOTE: whitelist a brand only if it genuinely includes seat selection.")
     return "\n".join(lines)
 
 
@@ -179,8 +106,7 @@ def run_analysis(conn, config: dict, days: int) -> str:
     rejection_rows = db.rejections_since(conn, days)
     tally = tally_rejections(rejection_rows)
     health = route_health(offer_rows, rejection_rows, load_configured_routes(config))
-    basic = basic_economy_candidates(rejection_rows, config["filters"]["basic_economy_patterns"])
-    return format_report(days, tally, health, basic)
+    return format_report(days, tally, health)
 
 
 def main(argv: list[str] | None = None) -> int:

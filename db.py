@@ -1,4 +1,4 @@
-"""SQLite persistence: offers, API-call budget, alert dedupe, run counter."""
+"""SQLite persistence: offers, rejections, API-call budget, alert dedupe, runs."""
 from __future__ import annotations
 
 import os
@@ -20,13 +20,12 @@ CREATE TABLE IF NOT EXISTS offers (
     return_date TEXT NOT NULL,
     price_usd REAL NOT NULL,
     currency TEXT NOT NULL,
-    outbound_json TEXT NOT NULL,
-    inbound_json TEXT NOT NULL,
-    stops_outbound INTEGER NOT NULL,
-    stops_inbound INTEGER NOT NULL,
-    connection_airports TEXT NOT NULL,
-    total_duration_minutes INTEGER NOT NULL,
-    fare_brand_names TEXT NOT NULL,
+    airline TEXT,
+    flight_number TEXT,
+    stops INTEGER NOT NULL,
+    departure_at TEXT NOT NULL,
+    return_at TEXT,
+    expires_at TEXT,
     offer_hash TEXT NOT NULL,
     UNIQUE (run_timestamp, offer_hash) ON CONFLICT IGNORE
 );
@@ -49,9 +48,8 @@ CREATE TABLE IF NOT EXISTS runs (
     started_at TEXT NOT NULL
 );
 
--- One row per offer rejected by a filter, so per-filter rejection rates,
--- dead routes, and basic-economy misclassification can be analysed later.
--- filter_reason is the first failing filter (evaluation short-circuits).
+-- One row per ticket rejected by a filter, for per-filter rejection rates
+-- and dead-route analysis. filter_reason is the first failing filter.
 CREATE TABLE IF NOT EXISTS rejections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_timestamp TEXT NOT NULL,
@@ -61,8 +59,8 @@ CREATE TABLE IF NOT EXISTS rejections (
     depart_date TEXT NOT NULL,
     price_usd REAL,
     filter_reason TEXT NOT NULL,
-    fare_brand_names TEXT NOT NULL,
-    carriers TEXT NOT NULL
+    airline TEXT,
+    stops INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_rejections_run ON rejections (run_timestamp);
 CREATE INDEX IF NOT EXISTS idx_rejections_reason ON rejections (filter_reason);
@@ -70,14 +68,13 @@ CREATE INDEX IF NOT EXISTS idx_rejections_reason ON rejections (filter_reason);
 
 OFFER_COLUMNS = (
     "run_timestamp", "origin", "dest", "dest_region", "depart_date",
-    "return_date", "price_usd", "currency", "outbound_json", "inbound_json",
-    "stops_outbound", "stops_inbound", "connection_airports",
-    "total_duration_minutes", "fare_brand_names", "offer_hash",
+    "return_date", "price_usd", "currency", "airline", "flight_number",
+    "stops", "departure_at", "return_at", "expires_at", "offer_hash",
 )
 
 REJECTION_COLUMNS = (
     "run_timestamp", "origin", "dest", "dest_region", "depart_date",
-    "price_usd", "filter_reason", "fare_brand_names", "carriers",
+    "price_usd", "filter_reason", "airline", "stops",
 )
 
 
@@ -135,7 +132,7 @@ def insert_offer(conn: sqlite3.Connection, row: dict) -> None:
 
 
 def insert_rejection(conn: sqlite3.Connection, row: dict) -> None:
-    """Insert one rejected-offer record (why an offer was filtered out)."""
+    """Insert one rejected-ticket record (why a ticket was filtered out)."""
     conn.execute(
         f"INSERT INTO rejections ({', '.join(REJECTION_COLUMNS)}) "
         f"VALUES ({', '.join('?' * len(REJECTION_COLUMNS))})",
@@ -175,7 +172,7 @@ def offers_since(conn: sqlite3.Connection, days: int) -> list[sqlite3.Row]:
 
 
 def rejections_since(conn: sqlite3.Connection, days: int) -> list[sqlite3.Row]:
-    """All rejected-offer records from the trailing `days` days, oldest first."""
+    """All rejected-ticket records from the trailing `days` days, oldest first."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )

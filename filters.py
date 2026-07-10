@@ -1,211 +1,98 @@
-"""Pure, unit-testable predicates and helpers over raw Amadeus flight-offer dicts.
+"""Pure, unit-testable predicates over Travelpayouts ticket dicts.
 
-Every filter is a small pure function taking the raw offer JSON (one element
-of the API response's "data" list) plus its threshold, so each can be tested
-in isolation against fixture data.
+A "ticket" is one value from the calendar endpoint's data map, augmented by
+the tracker with its departure date. Its fields:
+    origin, destination, price, transfers, airline, flight_number,
+    departure_at, return_at, expires_at
+
+The cached price data has no branded fares or per-segment routing, so the
+main-cabin, connection-minimum, and per-direction duration filters that the
+Amadeus version had are not possible here and have been removed. Each
+surviving filter is a small pure function for isolated testing.
 """
 from __future__ import annotations
 
 import hashlib
-import re
-from datetime import datetime
 from typing import Any
 
-Offer = dict[str, Any]
-
-_DURATION_RE = re.compile(r"^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$")
+Ticket = dict[str, Any]
 
 
-def parse_duration_minutes(value: str) -> int:
-    """Parse an ISO-8601 duration like 'PT13H30M' or 'P1DT2H' into minutes."""
-    match = _DURATION_RE.match(value or "")
-    if not match or not any(match.groups()):
-        raise ValueError(f"Unparseable ISO-8601 duration: {value!r}")
-    days, hours, minutes = (int(g) if g else 0 for g in match.groups())
-    return days * 24 * 60 + hours * 60 + minutes
+def price_usd(ticket: Ticket) -> float:
+    """Ticket price."""
+    return float(ticket["price"])
 
 
-def itinerary_segments(offer: Offer, index: int) -> list[dict[str, Any]]:
-    """Segments of one itinerary: index 0 = outbound, 1 = inbound."""
-    return offer["itineraries"][index]["segments"]
+def price_ok(ticket: Ticket, max_price_usd: float) -> bool:
+    """True if the ticket price is at or under the cap."""
+    return price_usd(ticket) <= max_price_usd
 
 
-def all_segments(offer: Offer) -> list[dict[str, Any]]:
-    """All segments across every itinerary, in order."""
-    return [seg for itin in offer["itineraries"] for seg in itin["segments"]]
+def stops(ticket: Ticket) -> int:
+    """Number of stops (transfers) on the outbound routing."""
+    return int(ticket.get("transfers", 0) or 0)
 
 
-def price_usd(offer: Offer) -> float:
-    """Grand total price of the offer."""
-    price = offer["price"]
-    return float(price.get("grandTotal") or price["total"])
+def stops_ok(ticket: Ticket, max_stops: int) -> bool:
+    """True if the ticket has at most max_stops connections."""
+    return stops(ticket) <= max_stops
 
 
-def price_ok(offer: Offer, max_price_usd: float) -> bool:
-    """True if the offer's grand total is at or under the price cap."""
-    return price_usd(offer) <= max_price_usd
+def departure_hhmm(ticket: Ticket) -> str:
+    """Local departure time as 'HH:MM'.
 
-
-def itinerary_stops(offer: Offer, index: int) -> int:
-    """Number of stops (connections) in one itinerary."""
-    return max(len(itinerary_segments(offer, index)) - 1, 0)
-
-
-def stops_ok(offer: Offer, max_stops: int) -> bool:
-    """True if every itinerary has at most max_stops connections."""
-    return all(
-        itinerary_stops(offer, i) <= max_stops for i in range(len(offer["itineraries"]))
-    )
-
-
-def durations_ok(offer: Offer, max_hours: float) -> bool:
-    """True if EACH direction's itinerary duration is at most max_hours."""
-    limit = max_hours * 60
-    return all(
-        parse_duration_minutes(itin["duration"]) <= limit for itin in offer["itineraries"]
-    )
-
-
-def total_duration_minutes(offer: Offer) -> int:
-    """Sum of all itinerary durations (outbound + inbound), in minutes."""
-    return sum(parse_duration_minutes(itin["duration"]) for itin in offer["itineraries"])
-
-
-def connection_gaps_minutes(offer: Offer) -> list[int]:
-    """Layover lengths in minutes at every connection across all itineraries.
-
-    Arrival and next departure are local times at the same airport, so their
-    naive difference is the true connection time.
+    Travelpayouts labels departure_at with a 'Z' but the clock time is local
+    to the origin airport, so the HH:MM substring is the local departure time
+    — exactly what the per-origin floor is expressed against.
     """
-    gaps: list[int] = []
-    for itin in offer["itineraries"]:
-        segs = itin["segments"]
-        for prev, nxt in zip(segs, segs[1:]):
-            arrive = datetime.fromisoformat(prev["arrival"]["at"])
-            depart = datetime.fromisoformat(nxt["departure"]["at"])
-            gaps.append(int((depart - arrive).total_seconds() // 60))
-    return gaps
+    return str(ticket["departure_at"])[11:16]
 
 
-def connections_ok(offer: Offer, min_minutes: int) -> bool:
-    """True if every connection is at least min_minutes long."""
-    return all(gap >= min_minutes for gap in connection_gaps_minutes(offer))
+def outbound_departure_ok(ticket: Ticket, earliest_hhmm: str) -> bool:
+    """True if the outbound departs at or after the origin's earliest time."""
+    return departure_hhmm(ticket) >= earliest_hhmm
 
 
-def connection_airports(offer: Offer) -> list[str]:
-    """IATA codes of every connection airport across all itineraries."""
-    airports: list[str] = []
-    for itin in offer["itineraries"]:
-        for seg in itin["segments"][:-1]:
-            airports.append(seg["arrival"]["iataCode"])
-    return airports
+def carrier(ticket: Ticket) -> str | None:
+    """Marketing/validating airline IATA code (the only carrier the cached
+    data exposes; there is no operating-carrier field)."""
+    return ticket.get("airline")
 
 
-def fare_brand_names(offer: Offer) -> list[str | None]:
-    """Branded fare name per segment, in segment order; None where missing.
+def carriers_ok(ticket: Ticket, blocked: list[str]) -> bool:
+    """True if the ticket's airline is not in the blocked list.
 
-    Prefers the human label (brandedFareLabel) and falls back to the brand
-    code (brandedFare). Padded with None if the airline returned fewer fare
-    details than there are segments.
+    Note: cached data exposes only the validating airline, so unlike the
+    Amadeus version this cannot catch a blocked *operating* carrier.
     """
-    traveler_pricings = offer.get("travelerPricings") or [{}]
-    names: list[str | None] = []
-    for detail in traveler_pricings[0].get("fareDetailsBySegment") or []:
-        names.append(detail.get("brandedFareLabel") or detail.get("brandedFare"))
-    while len(names) < len(all_segments(offer)):
-        names.append(None)
-    return names
+    code = carrier(ticket)
+    return code is not None and code not in set(blocked)
 
 
-def is_basic_economy(
-    brand: str | None,
-    patterns: list[str],
-    whitelist: list[str] | None = None,
-) -> bool:
-    """True if a fare brand is basic economy OR missing/unidentifiable.
-
-    An exact (case-insensitive, trimmed) match against `whitelist` exempts a
-    brand from the pattern check — the escape hatch for a legitimate branded
-    fare whose name happens to contain a trigger word (e.g. an airline's
-    "Economy Light Plus"). A missing/blank brand is rejected regardless of the
-    whitelist: an unidentifiable fare can't be trusted to include seat
-    selection. When in doubt, reject.
-    """
-    if not brand or not str(brand).strip():
-        return True
-    normalized = str(brand).strip()
-    if whitelist and normalized.upper() in {w.strip().upper() for w in whitelist}:
-        return False
-    upper = normalized.upper()
-    return any(pattern.upper() in upper for pattern in patterns)
-
-
-def fare_brands_ok(
-    offer: Offer, patterns: list[str], whitelist: list[str] | None = None
-) -> bool:
-    """True only if every segment has an identifiable, non-basic fare brand."""
-    return not any(
-        is_basic_economy(brand, patterns, whitelist) for brand in fare_brand_names(offer)
-    )
-
-
-def offer_carriers(offer: Offer) -> set[str]:
-    """Marketing AND operating carrier codes across every segment."""
-    carriers: set[str] = set()
-    for seg in all_segments(offer):
-        carriers.add(seg["carrierCode"])
-        operating = seg.get("operating") or {}
-        if operating.get("carrierCode"):
-            carriers.add(operating["carrierCode"])
-    return carriers
-
-
-def carriers_ok(offer: Offer, blocked: list[str]) -> bool:
-    """True if no segment is marketed or operated by a blocked carrier."""
-    return not (offer_carriers(offer) & set(blocked))
-
-
-def outbound_departure_ok(offer: Offer, earliest_hhmm: str) -> bool:
-    """True if the OUTBOUND first segment departs at or after earliest_hhmm.
-
-    Applies only to the outbound itinerary's first segment (local time);
-    inbound and connection times are unconstrained.
-    """
-    departure_at = itinerary_segments(offer, 0)[0]["departure"]["at"]
-    return departure_at[11:16] >= earliest_hhmm
-
-
-def offer_hash(offer: Offer) -> str:
-    """Stable dedupe key: same flights + dates + fare brands => same hash."""
+def offer_hash(ticket: Ticket) -> str:
+    """Stable dedupe key: same route + dates + flight => same hash."""
     parts = [
-        f'{seg["carrierCode"]}{seg["number"]}|{seg["departure"]["iataCode"]}|{seg["departure"]["at"]}'
-        for seg in all_segments(offer)
+        str(ticket.get("origin", "")),
+        str(ticket.get("destination", "")),
+        str(ticket.get("departure_at", "")),
+        str(ticket.get("return_at", "")),
+        str(ticket.get("airline", "")),
+        str(ticket.get("flight_number", "")),
     ]
-    parts.extend(str(brand) for brand in fare_brand_names(offer))
     return hashlib.sha256("~".join(parts).encode()).hexdigest()[:16]
 
 
 def evaluate_offer(
-    offer: Offer, filters_config: dict[str, Any], earliest_departure: str
+    ticket: Ticket, filters_config: dict[str, Any], earliest_departure: str
 ) -> str | None:
-    """Run every filter; return None if the offer passes, else the first
-    failing filter's name (for logging)."""
-    if not carriers_ok(offer, filters_config["blocked_carriers"]):
+    """Run every supported filter; return None if the ticket passes, else the
+    first failing filter's name (for the rejection record)."""
+    if not carriers_ok(ticket, filters_config["blocked_carriers"]):
         return "blocked_carrier"
-    if not price_ok(offer, filters_config["max_price_usd"]):
+    if not price_ok(ticket, filters_config["max_price_usd"]):
         return "max_price"
-    if not stops_ok(offer, filters_config["max_stops"]):
+    if not stops_ok(ticket, filters_config["max_stops"]):
         return "max_stops"
-    if not durations_ok(offer, filters_config["max_total_duration_hours"]):
-        return "max_duration"
-    if not connections_ok(offer, filters_config["min_connection_minutes"]):
-        return "min_connection"
-    if not fare_brands_ok(
-        offer,
-        filters_config["basic_economy_patterns"],
-        filters_config.get("fare_brand_whitelist"),
-    ):
-        return "basic_economy"
-    if not outbound_departure_ok(offer, earliest_departure):
+    if not outbound_departure_ok(ticket, earliest_departure):
         return "earliest_departure"
     return None
