@@ -1,10 +1,10 @@
 # Flight deal report
 
-_Updated 2026-07-14 06:23 UTC_
+_Updated 2026-07-14 12:23 UTC_
 
 ## Top 3 domestic
 
-1. GSO->LAS $211 · United (UA) 4576 · 1 stop · Nov 11-15
+1. CLT->BOS $279 · Southwest (WN) 2694 · 1 stop · Oct 15-19
 
 ## Top 3 international
 
@@ -14,4 +14,4 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| GSO→LAS | $211 | – |
+| CLT→BOS | $279 | → flat |
