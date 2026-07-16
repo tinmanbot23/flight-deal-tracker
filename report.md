@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-07-16 13:06 UTC_
+_Updated 2026-07-16 18:48 UTC_
 
 ## Top 3 domestic
 
@@ -14,5 +14,4 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| GSO→LAS | $211 | → flat |
 | RDU→MIA | $388 | – |
