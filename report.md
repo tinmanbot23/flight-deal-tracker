@@ -1,10 +1,10 @@
 # Flight deal report
 
-_Updated 2026-07-16 18:48 UTC_
+_Updated 2026-07-17 06:28 UTC_
 
 ## Top 3 domestic
 
-1. RDU->MIA $388 · American (AA) 1894 · 1 stop · Nov 24-28
+1. CLT->BOS $279 · Southwest (WN) 2694 · 1 stop · Oct 15-19
 
 ## Top 3 international
 
@@ -14,4 +14,5 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
+| CLT→BOS | $279 | → flat |
 | RDU→MIA | $388 | – |
