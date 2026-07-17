@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-07-17 06:28 UTC_
+_Updated 2026-07-17 12:03 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | CLT→BOS | $279 | → flat |
-| RDU→MIA | $388 | – |
