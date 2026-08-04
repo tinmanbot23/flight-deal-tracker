@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-08-04 07:48 UTC_
+_Updated 2026-08-04 16:21 UTC_
 
 ## Top 3 domestic
 
-1. RDU->BOS $291 · JetBlue (B6) 1486 · 1 stop · Sep 23-27
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. RDU->CUN $247 · United (UA) 2407 · 1 stop · Sep 23-30
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| RDU→CUN | $247 | – |
