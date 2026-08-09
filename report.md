@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-09 08:37 UTC_
+_Updated 2026-08-09 15:27 UTC_
 
 ## Top 3 domestic
 
@@ -12,6 +12,4 @@ _No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-| Route | Cheapest | 7d trend |
-|-------|---------:|----------|
-| RDU→CUN | $247 | → flat |
+_No offers recorded in the last 24 hours._
