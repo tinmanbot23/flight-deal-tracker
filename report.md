@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-11 15:57 UTC_
+_Updated 2026-08-11 22:37 UTC_
 
 ## Top 3 domestic
 
@@ -12,6 +12,4 @@ _No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-| Route | Cheapest | 7d trend |
-|-------|---------:|----------|
-| RDU→MIA | $267 | – |
+_No offers recorded in the last 24 hours._
