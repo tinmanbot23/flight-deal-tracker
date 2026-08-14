@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-14 09:04 UTC_
+_Updated 2026-08-14 15:47 UTC_
 
 ## Top 3 domestic
 
@@ -13,8 +13,4 @@ _Updated 2026-08-14 09:04 UTC_
 
 ## Routes (cheapest current offer, 7-day trend)
 
-| Route | Cheapest | 7d trend |
-|-------|---------:|----------|
-| RDU→CUN | $353 | ↑ $106 |
-| RDU→MIA | $267 | → flat |
-| RDU→SJO | $352 | – |
+_No offers recorded in the last 24 hours._
