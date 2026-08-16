@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-16 08:23 UTC_
+_Updated 2026-08-16 15:17 UTC_
 
 ## Top 3 domestic
 
@@ -14,5 +14,4 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| RDU→CUN | $353 | → flat |
 | RDU→SJO | $352 | → flat |
