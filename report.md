@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-16 22:16 UTC_
+_Updated 2026-08-17 08:38 UTC_
 
 ## Top 3 domestic
 
@@ -12,6 +12,4 @@ _No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-| Route | Cheapest | 7d trend |
-|-------|---------:|----------|
-| RDU→SJO | $352 | → flat |
+_No offers recorded in the last 24 hours._
