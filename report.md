@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-08-22 15:16 UTC_
+_Updated 2026-08-22 22:17 UTC_
 
 ## Top 3 domestic
 
-_No qualifying offers in the latest run._
+1. GSO->LAS $477 · American (AA) 2242 · 1 stop · Sep 17-21
 
 ## Top 3 international
 
-1. CLT->NAS $439 · Air Canada (AC) 8748 · 1 stop · Sep 16-21
+_No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| GSO→LAS | $477 | – |
