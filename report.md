@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-23 15:18 UTC_
+_Updated 2026-08-23 22:17 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | CLT→NAS | $439 | → flat |
-| GSO→LAS | $477 | – |
