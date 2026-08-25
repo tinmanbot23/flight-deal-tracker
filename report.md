@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-25 15:38 UTC_
+_Updated 2026-08-25 22:22 UTC_
 
 ## Top 3 domestic
 
@@ -14,6 +14,5 @@ _Updated 2026-08-25 15:38 UTC_
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| CLT→JAX | $269 | – |
 | GSO→LAS | $477 | → flat |
 | RDU→CUN | $623 | – |
