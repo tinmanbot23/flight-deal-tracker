@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-08-26 08:38 UTC_
+_Updated 2026-08-26 16:15 UTC_
 
 ## Top 3 domestic
 
@@ -12,7 +12,4 @@ _Updated 2026-08-26 08:38 UTC_
 
 ## Routes (cheapest current offer, 7-day trend)
 
-| Route | Cheapest | 7d trend |
-|-------|---------:|----------|
-| GSO→LAS | $477 | → flat |
-| RDU→CUN | $623 | – |
+_No offers recorded in the last 24 hours._
