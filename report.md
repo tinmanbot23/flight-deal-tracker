@@ -1,10 +1,10 @@
 # Flight deal report
 
-_Updated 2026-08-28 19:51 UTC_
+_Updated 2026-08-29 03:28 UTC_
 
 ## Top 3 domestic
 
-1. GSO->LAS $477 · American (AA) 2242 · 1 stop · Sep 17-21
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
@@ -12,4 +12,6 @@ _Updated 2026-08-28 19:51 UTC_
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| RDU→CUN | $623 | → flat |
