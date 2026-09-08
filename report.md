@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-09-08 12:35 UTC_
+_Updated 2026-09-08 18:16 UTC_
 
 ## Top 3 domestic
 
-1. RDU->MIA $336 · American (AA) 2443 · nonstop · Oct 17-21
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. CLT->SJO $448 · Avianca (AV) 2226 · 1 stop · Dec 1-8
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| CLT→SJO | $448 | – |
