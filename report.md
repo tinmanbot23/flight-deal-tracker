@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-09-11 12:33 UTC_
+_Updated 2026-09-11 18:08 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | CLT→SJO | $448 | → flat |
-| RDU→LHR | $938 | – |
