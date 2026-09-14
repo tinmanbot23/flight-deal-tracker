@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-09-14 14:41 UTC_
+_Updated 2026-09-14 19:43 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | CLT→PTY | $804 | – |
-| CLT→SJO | $448 | → flat |
