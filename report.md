@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-09-16 13:04 UTC_
+_Updated 2026-09-16 18:38 UTC_
 
 ## Top 3 domestic
 
@@ -14,6 +14,4 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| CLT→JAX | $205 | → flat |
 | CLT→PTY | $804 | → flat |
-| RDU→LHR | $938 | → flat |
