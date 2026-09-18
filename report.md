@@ -1,17 +1,18 @@
 # Flight deal report
 
-_Updated 2026-09-18 12:40 UTC_
+_Updated 2026-09-18 18:02 UTC_
 
 ## Top 3 domestic
 
-1. CLT->JAX $205 · Southwest (WN) 989 · 1 stop · Oct 28-Nov 1
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. CLT->CUN $430 · Air Canada (AC) 8746 · 1 stop · Sep 22-29
 
 ## Routes (cheapest current offer, 7-day trend)
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
+| CLT→CUN | $430 | – |
 | CLT→JAX | $205 | → flat |
