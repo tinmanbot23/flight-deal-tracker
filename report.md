@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-10-14 00:50 UTC_
+_Updated 2026-10-14 13:17 UTC_
 
 ## Top 3 domestic
 
-_No qualifying offers in the latest run._
+1. RDU->SEA $351 · United (UA) 2288 · 1 stop · Oct 15-20
 
 ## Top 3 international
 
-1. CLT->CUN $430 · Air Canada (AC) 8746 · 1 stop · Sep 22-29
+_No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| RDU→SEA | $351 | – |
