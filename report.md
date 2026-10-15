@@ -1,17 +1,18 @@
 # Flight deal report
 
-_Updated 2026-10-15 00:16 UTC_
+_Updated 2026-10-15 13:02 UTC_
 
 ## Top 3 domestic
 
-1. RDU->SEA $351 · United (UA) 2288 · 1 stop · Oct 15-20
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. RDU->LHR $606 · FI 820 · 1 stop · Oct 25-Nov 1
 
 ## Routes (cheapest current offer, 7-day trend)
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
+| RDU→LHR | $606 | – |
 | RDU→SEA | $351 | – |
