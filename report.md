@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-10-16 12:59 UTC_
+_Updated 2026-10-16 18:35 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | GSO→TPA | $303 | – |
-| RDU→LHR | $606 | – |
