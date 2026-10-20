@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-10-20 13:16 UTC_
+_Updated 2026-10-20 18:52 UTC_
 
 ## Top 3 domestic
 
-1. GSO->TPA $303 · American (AA) 4217 · 1 stop · Nov 25-29
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. RDU->LHR $606 · FI 820 · 1 stop · Oct 25-Nov 1
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| RDU→LHR | $606 | → flat |
