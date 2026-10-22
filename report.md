@@ -1,17 +1,18 @@
 # Flight deal report
 
-_Updated 2026-10-22 13:24 UTC_
+_Updated 2026-10-22 19:02 UTC_
 
 ## Top 3 domestic
 
-1. GSO->TPA $303 · American (AA) 4217 · 1 stop · Nov 25-29
+_No qualifying offers in the latest run._
 
 ## Top 3 international
 
-_No qualifying offers in the latest run._
+1. CLT->FCO $758 · United (UA) 6203 · 1 stop · Nov 11-19
 
 ## Routes (cheapest current offer, 7-day trend)
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
+| CLT→FCO | $758 | – |
 | GSO→TPA | $303 | → flat |
