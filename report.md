@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-10-22 19:02 UTC_
+_Updated 2026-10-23 00:22 UTC_
 
 ## Top 3 domestic
 
@@ -15,4 +15,3 @@ _No qualifying offers in the latest run._
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
 | CLT→FCO | $758 | – |
-| GSO→TPA | $303 | → flat |
