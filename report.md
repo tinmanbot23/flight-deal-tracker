@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-10-23 18:52 UTC_
+_Updated 2026-10-24 00:13 UTC_
 
 ## Top 3 domestic
 
@@ -14,5 +14,4 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| CLT→FCO | $758 | – |
 | RDU→CUN | $478 | – |
