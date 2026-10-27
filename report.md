@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-10-27 13:54 UTC_
+_Updated 2026-10-27 19:48 UTC_
 
 ## Top 3 domestic
 
@@ -8,10 +8,10 @@ _No qualifying offers in the latest run._
 
 ## Top 3 international
 
-1. RDU->CUN $478 · Air Canada (AC) 8674 · 1 stop · Nov 28-Dec 5
+1. CLT->FCO $758 · United (UA) 6203 · 1 stop · Nov 11-19
 
 ## Routes (cheapest current offer, 7-day trend)
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
-| RDU→CUN | $478 | → flat |
+| CLT→FCO | $758 | → flat |
