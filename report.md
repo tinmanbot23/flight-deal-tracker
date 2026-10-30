@@ -1,6 +1,6 @@
 # Flight deal report
 
-_Updated 2026-10-30 01:31 UTC_
+_Updated 2026-10-30 14:47 UTC_
 
 ## Top 3 domestic
 
