@@ -1,15 +1,17 @@
 # Flight deal report
 
-_Updated 2026-11-19 02:55 UTC_
+_Updated 2026-11-19 17:01 UTC_
 
 ## Top 3 domestic
 
-_No qualifying offers in the latest run._
+1. GSO->MSY $506 · American (AA) 3880 · 1 stop · Nov 22-26
 
 ## Top 3 international
 
-1. RDU->CUN $478 · Air Canada (AC) 8674 · 1 stop · Nov 28-Dec 5
+_No qualifying offers in the latest run._
 
 ## Routes (cheapest current offer, 7-day trend)
 
-_No offers recorded in the last 24 hours._
+| Route | Cheapest | 7d trend |
+|-------|---------:|----------|
+| GSO→MSY | $506 | – |
