@@ -1,10 +1,10 @@
 # Flight deal report
 
-_Updated 2026-11-19 17:01 UTC_
+_Updated 2026-11-20 02:49 UTC_
 
 ## Top 3 domestic
 
-1. GSO->MSY $506 · American (AA) 3880 · 1 stop · Nov 22-26
+1. CLT->PHX $299 · American (AA) 2573 · nonstop · Dec 3-7
 
 ## Top 3 international
 
@@ -14,4 +14,5 @@ _No qualifying offers in the latest run._
 
 | Route | Cheapest | 7d trend |
 |-------|---------:|----------|
+| CLT→PHX | $299 | – |
 | GSO→MSY | $506 | – |
